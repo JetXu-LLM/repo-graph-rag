@@ -1,0 +1,327 @@
+# Knowledge Graph Schema for Repository Analysis
+metadata:
+  version: "1.2"
+  description: "Enhanced Repository Knowledge Graph for PR Review and GraphRAG"
+  purpose: "LLM-assisted PR review, code analysis, and semantic search"
+  supported_languages: ["*"]
+
+################################
+# Core Layer
+################################
+
+core_entities:
+  # Code Structure
+  - name: Repository
+    description: "Top-level code container"
+    properties:
+      - name: repository_id
+        type: "string"
+      - name: description
+        type: "string"
+        description: "Repository description from source"
+      - name: primary_language
+        type: "string"
+      - name: content_summary
+        type: "string"
+        description: "AI-generated summary of repository purpose"
+    
+  - name: Module
+    description: "Logical code organization unit (folder/package/namespace)"
+    properties:
+      - name: module_name
+        type: "string"
+      - name: type
+        enum: ["source", "test", "config", "documentation"]
+      - name: complexity_score
+        type: "integer"
+      - name: description
+        type: "string"
+      - name: content_summary
+        type: "string"
+    
+  - name: File
+    description: "Physical code or documentation file"
+    properties:
+      - name: file_path
+        type: "string"
+      - name: file_name
+        type: "string"
+      - name: description
+        type: "string"
+      - name: file_type
+        type: "string"
+      - name: size
+        type: "integer"
+      - name: last_modified
+        type: "datetime"
+      - name: content_hash
+        type: "string"
+      - name: content
+        type: "string"
+    
+  - name: Class
+    description: "Object-oriented structure"
+    properties:
+      - name: class_name
+        type: "string"
+      - name: complexity
+        type: "integer"
+      - name: description
+        type: "string"
+      - name: definition
+        type: "string"
+        description: "Summary of class definition including parameters"
+    
+  - name: Method
+    description: "Function or method implementation"
+    properties:
+      - name: method_name
+        type: "string"
+      - name: description
+        type: "string"
+      - name: content
+        type: "string"
+      - name: complexity
+        type: "integer"
+    
+  - name: Interface
+    description: "Abstract contract definition"
+    properties:
+      - name: interface_name
+        type: "string"
+      - name: description
+        type: "string"
+      - name: content
+        type: "string"
+    
+  - name: Variable
+    description: "Data storage unit"
+    properties:
+      - name: variable_name
+        type: "string"
+      - name: type
+        type: "string"
+      - name: scope
+        enum: ["global", "class", "method", "local"]
+      - name: is_constant
+        type: "boolean"
+      - name: description
+        type: "string"
+        description: "Usage description or constant value"
+
+  # Documentation
+  - name: Document
+    description: "Any form of documentation"
+    properties:
+      - name: doc_type
+        enum: ["readme", "api", "architecture", "usage"]
+      - name: content
+        type: "string"
+      - name: content_summary
+        type: "string"
+      - name: last_updated
+        type: "datetime"
+
+################################
+# Core Relationships
+################################
+
+core_relationships:
+  - name: CONTAINS
+    description: "Physical or logical containment"
+    properties:
+      - name: containment_type
+        enum: ["physical", "logical"]
+      - name: is_required
+        type: "boolean"
+    
+  - name: DEPENDS_ON
+    description: "Module or function dependency"
+    properties:
+      - name: dependency_type
+        enum: ["import", "call", "reference", "use"]
+      - name: is_direct
+        type: "boolean"
+      - name: change_impact_score
+        type: "integer"
+        description: "From 0 to 9"
+    
+  - name: INHERITS
+    description: "Class or interface inheritance"
+    properties:
+      - name: inheritance_type
+        enum: ["extends", "implements", "mixes"]
+      - name: visibility
+        enum: ["public", "protected", "private"]
+    
+  - name: DESCRIBES
+    description: "Documentation describes code"
+    properties:
+      - name: description_type
+        enum: ["api", "usage", "architecture", "implementation"]
+      - name: completeness
+        type: "integer"
+        description: "Percentage"
+    
+  - name: VERIFIES
+    description: "Test verifies code"
+    properties:
+      - name: verification_type
+        enum: ["unit", "integration", "e2e"]
+      - name: coverage_type
+        enum: ["full", "partial"]
+      - name: verification_status
+        enum: ["passed", "failed"]
+
+################################
+# Extension Layer
+################################
+
+extension_entities:
+  - name: LanguageFeature
+    description: "Language specific features"
+    properties:
+      - name: feature_type
+        enum: ["decorator", "annotation", "package"]
+      - name: language
+        type: "string"
+      - name: name
+        type: "string"
+      - name: properties
+        type: "object"
+      - name: description
+        type: "string"
+
+extension_relationships:
+  - name: MODIFIES
+    description: "Language feature modifies code"
+    properties:
+      - name: modification_type
+        enum: ["enhance", "validate", "transform"]
+      - name: priority
+        type: "integer"
+
+  - name: CONFIGURES
+    description: "Configuration relationship"
+    properties:
+      - name: config_type
+        enum: ["build", "runtime", "test"]
+      - name: is_optional
+        type: "boolean"
+################################
+# Inference Rules
+################################
+
+inference_rules:
+  - name: "dependency_impact"
+    description: "Analyze change impact through dependencies"
+    pattern: |
+      MATCH (changed)-[:DEPENDS_ON*]->(impacted)
+      WHERE changed IN PR_CHANGES
+      RETURN impacted
+    severity: "high"
+    
+  - name: "complexity_threshold"
+    description: "Flag high complexity methods"
+    condition: "Method.cyclomatic_complexity > 15 OR Method.cognitive_complexity > 20"
+    action: "flag_for_review"
+    severity: "medium"
+    
+  - name: "test_coverage_check"
+    description: "Ensure changed code has tests"
+    pattern: |
+      MATCH (code)-[:VERIFIES]-(test)
+      WHERE code IN PR_CHANGES
+      RETURN count(test) > 0
+    severity: "high"
+
+################################
+# Query Templates
+################################
+
+query_templates:
+  - name: "semantic_code_search"
+    description: "Search code elements by semantic meaning"
+    template: |
+      MATCH (n)
+      WHERE n.description CONTAINS $semantic_query
+      OR n.content_summary CONTAINS $semantic_query
+      RETURN n
+    
+  - name: "pr_impact_analysis"
+    description: "Analyze PR impact scope with confidence scores"
+    template: |
+      MATCH (changed {in_pr: true})
+      OPTIONAL MATCH (changed)-[r:DEPENDS_ON*1..3]->(impacted)
+      WITH changed, impacted, 
+           reduce(score = 1.0, r IN relationships(path) | 
+                 score * r.change_impact_score) as impact_score
+      WHERE impact_score > 0.3
+      RETURN changed, collect({node: impacted, score: impact_score})
+    
+  - name: "context_retrieval"
+    description: "Retrieve relevant context for LLM"
+    template: |
+      MATCH (target {id: $target_id})
+      OPTIONAL MATCH (target)-[:DEPENDS_ON|CONTAINS|INHERITS*1..2]-(context)
+      RETURN target, collect(context)
+
+################################
+# Performance Optimizations
+################################
+
+indexes:
+  - name: "semantic_search"
+    entities: ["Repository", "Module", "File", "Class", "Method"]
+    properties: ["description", "content_summary"]
+    type: "fulltext"
+    
+  - name: "method_complexity"
+    entity: "Method"
+    properties: ["cyclomatic_complexity", "cognitive_complexity"]
+    
+  - name: "dependency_lookup"
+    relationship: "DEPENDS_ON"
+    properties: ["dependency_type", "change_impact_score"]
+    
+  - name: "test_coverage"
+    relationship: "VERIFIES"
+    properties: ["verification_type", "coverage_type"]
+
+caching:
+  strategy: "hybrid"
+  entities: ["Method", "Class", "Module"]
+  relationships: ["DEPENDS_ON", "VERIFIES"]
+  ttl: 3600  # seconds
+
+################################
+# Constraints
+################################
+
+constraints:
+  # Uniqueness Constraints
+  - type: "unique"
+    scope: ["Repository.repository_id", "File.file_path", "Method.signature"]
+    
+  - type: "unique"
+    scope: ["Module.module_path"]
+    
+  # Required Fields
+  - type: "required"
+    properties: ["description", "content_summary"]
+    entities: ["Repository", "Module", "Class", "Method"]
+    
+  # Cardinality Constraints
+  - type: "cardinality"
+    relationship: "CONTAINS"
+    restrictions:
+      min: 0
+      max: "unlimited"
+    
+  # Value Constraints
+  - type: "value"
+    entity: "Method"
+    property: "cyclomatic_complexity"
+    range:
+      min: 1
+      max: 50

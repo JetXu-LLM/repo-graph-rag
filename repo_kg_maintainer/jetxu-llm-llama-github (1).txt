@@ -1,0 +1,3708 @@
+Directory structure:
+└── jetxu-llm-llama-github/
+    ├── LICENSE
+    ├── MANIFEST.in
+    ├── requirements.txt
+    ├── setup.cfg
+    ├── setup.py
+    ├── docs/
+    │   └── examples/
+    ├── llama_github/
+    │   ├── __init__.py
+    │   ├── github_rag.py
+    │   ├── logger.py
+    │   ├── utils.py
+    │   ├── version.py
+    │   ├── config/
+    │   │   ├── __init__.py
+    │   │   ├── config.json
+    │   │   └── config.py
+    │   ├── data_retrieval/
+    │   │   ├── __init__.py
+    │   │   ├── github_api.py
+    │   │   └── github_entities.py
+    │   ├── features/
+    │   │   ├── __init__.py
+    │   │   ├── feature_flags.py
+    │   │   └── insider_features.py
+    │   ├── github_integration/
+    │   │   ├── __init__.py
+    │   │   └── github_auth_manager.py
+    │   ├── llm_integration/
+    │   │   ├── __init__.py
+    │   │   ├── initial_load.py
+    │   │   └── llm_handler.py
+    │   └── rag_processing/
+    │       ├── __init__.py
+    │       └── rag_processor.py
+    ├── tests/
+    │   ├── __init__.py
+    │   ├── test_data_retrieval.py
+    │   ├── test_github_auth_manager.py
+    │   ├── test_initial_load.py
+    │   ├── test_llm_handler.py
+    │   ├── test_logger.py
+    │   └── test_rag_processor.py
+    └── .github/
+        ├── gitleaks.toml
+        ├── ISSUE_TEMPLATE/
+        └── workflows/
+            ├── publish.yml
+            └── secret-scan.yml
+
+================================================
+File: LICENSE
+================================================
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [2024] [Jet Xu]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+
+================================================
+File: MANIFEST.in
+================================================
+include llama_github/config/config.json
+include CHANGELOG.md
+
+================================================
+File: requirements.txt
+================================================
+aiohttp
+asyncio
+dataclasses
+PyGithub
+langchain
+numpy
+pydantic
+requests
+transformers
+urllib3
+sys
+platform
+subprocess
+pydantic_core
+langchain_openai
+langchain_mistralai
+httpx_sse
+tokenizers
+
+
+================================================
+File: setup.cfg
+================================================
+[metadata]
+name = llama-github
+version = 0.2.6
+author = Jet Xu
+author_email = Voldemort.xu@foxmail.com
+description = Llama-github is an open-source Python library that empowers LLM Chatbots, AI Agents, and Auto-dev Agents to conduct Retrieval from actively selected GitHub public projects. It Augments through LLMs and Generates context for any coding question, in order to streamline the development of sophisticated AI-driven applications.
+long_description = file: README.md, CHANGELOG.md
+long_description_content_type = text/markdown
+url = https://github.com/JetXu-LLM/llama-github
+classifiers =
+    Programming Language :: Python :: 3
+    License :: OSI Approved :: Apache Software License
+    Operating System :: OS Independent
+
+[options]
+packages = find:
+python_requires = >=3.6
+include_package_data = True
+
+[options.packages.find]
+include =
+    llama_github
+    llama_github.*
+
+[options.package_data]
+llama_github = config/config.json
+
+[options.extras_require]
+dev =
+    pytest
+    black
+    flake8
+
+
+================================================
+File: setup.py
+================================================
+from setuptools import setup, find_packages
+from configparser import ConfigParser
+
+# Read the requirements from requirements.txt
+with open("requirements.txt", "r", encoding="utf-8") as fh:
+    requirements = fh.readlines()
+
+# Read version from setup.cfg
+config = ConfigParser()
+config.read('setup.cfg')
+version = config['metadata']['version']
+
+setup(
+    version=version,
+    install_requires=[req.strip() for req in requirements],
+)
+
+================================================
+File: llama_github/__init__.py
+================================================
+from .version import __version__
+from .github_rag import GithubRAG
+from .logger import configure_logging
+
+================================================
+File: llama_github/github_rag.py
+================================================
+from llama_github.logger import logger
+from llama_github.config.config import config
+from typing import List, Optional, Any, Dict
+from dataclasses import dataclass
+from pprint import pformat
+
+from llama_github.llm_integration.initial_load import LLMManager
+from llama_github.rag_processing.rag_processor import RAGProcessor
+
+from llama_github.github_integration.github_auth_manager import GitHubAuthManager
+from llama_github.data_retrieval.github_api import GitHubAPIHandler
+from llama_github.data_retrieval.github_entities import Repository, RepositoryPool
+from llama_github.utils import AsyncHTTPClient
+
+import asyncio
+from IPython import get_ipython
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import quote
+
+
+@dataclass
+class GitHubAppCredentials:
+    app_id: int
+    private_key: str
+    installation_id: int
+
+
+class GithubRAG:
+    rag_processor: RAGProcessor = None
+    simple_mode: bool = False
+
+    def __init__(self,
+                 github_access_token: Optional[str] = None,
+                 github_app_credentials: Optional[GitHubAppCredentials] = None,
+                 openai_api_key: Optional[str] = None,
+                 mistral_api_key: Optional[str] = None,
+                 huggingface_token: Optional[str] = None,
+                 jina_api_key: Optional[str] = None,
+                 open_source_models_hg_dir: Optional[str] = None,
+                 embedding_model: Optional[str] = config.get(
+                     "default_embedding"),
+                 rerank_model: Optional[str] = config.get("default_reranker"),
+                 llm: Any = None,
+                 simple_mode: bool = False,
+                 **kwargs) -> None:
+        """
+        Initialize the GithubRAG with the provided credentials and configuration.
+
+        This constructor sets up the necessary components for GitHub integration,
+        RAG processing, and LLM capabilities. It handles authentication, initializes
+        the repository pool, and sets up the LLM manager.
+
+        Args:
+            github_access_token (Optional[str]): GitHub access token for authentication.
+            github_app_credentials (Optional[GitHubAppCredentials]): Credentials for GitHub App authentication.
+            openai_api_key (Optional[str]): API key for OpenAI services (GPT-4-turbo will be used).
+            mistral_api_key (Optional[str]): API key for Mistral AI services.
+            huggingface_token (Optional[str]): Token for Hugging Face services (recommended).
+            jina_api_key (Optional[str]): API key for Jina AI services (s.jina.ai API will be used).
+            open_source_models_hg_dir (Optional[str]): Directory for open-source models from Hugging Face.
+            embedding_model (Optional[str]): Name of the preferred embedding model from Hugging Face.
+            rerank_model (Optional[str]): Name of the preferred rerank model from Hugging Face.
+            llm (Any): Any LangChain LLM chat object to replace OpenAI or open-source models.
+            simple_mode (bool): If True, skip embedding and rerank model initialization in LLMManager.
+            **kwargs: Additional keyword arguments for repository pool configuration.
+
+        Raises:
+            Exception: If there's an error during initialization.
+        """
+        try:
+            logger.info("Initializing GithubRAG...")
+            logger.debug("Initializing Github Instance...")
+
+            self.simple_mode = simple_mode
+
+            self.auth_manager = GitHubAuthManager()
+            if github_access_token:
+                self.github_instance = self.auth_manager.authenticate_with_token(
+                    github_access_token)
+            elif github_app_credentials:
+                self.github_instance = self.auth_manager.authenticate_with_app(
+                    github_app_credentials.app_id, github_app_credentials.private_key, github_app_credentials.installation_id)
+            else:
+                logger.error("GitHub credentials not provided.")
+            logger.debug("Github Instance Initialized.")
+
+            logger.debug("Initializing Repository Pool...")
+            param_mapping = {
+                "repo_cleanup_interval": "cleanup_interval",
+                "repo_max_idle_time": "max_idle_time"
+            }
+            repo_pool_kwargs = {
+                param_mapping[k]: v for k, v in kwargs.items() if k in param_mapping}
+            self.RepositoryPool = RepositoryPool(
+                self.github_instance, **repo_pool_kwargs)
+            self.github_api_handler = GitHubAPIHandler(self.github_instance)
+            logger.debug("Repository Pool Initialized.")
+
+            self.jina_api_key = jina_api_key
+
+            logger.debug(
+                "Initializing llm manager, embedding model & reranker model...")
+            self.llm_manager = LLMManager(
+                openai_api_key, mistral_api_key, huggingface_token, open_source_models_hg_dir, embedding_model, rerank_model, llm, simple_mode=self.simple_mode)
+            logger.debug(
+                "LLM Manager, Embedding model & Reranker model Initialized.")
+
+            self.rag_processor = RAGProcessor(
+                self.github_api_handler, self.llm_manager)
+            logger.info("GithubRAG initialization completed.")
+        except Exception as e:
+            logger.error(f"Error during GithubRAG initialization: {str(e)}")
+            raise
+
+    async def async_retrieve_context(self, query, simple_mode: Optional[bool] = None) -> List[str]:
+        """
+        Asynchronously retrieve context based on the given query.
+
+        This method orchestrates the context retrieval process, including Google search,
+        code search, issue search, and repository search. It uses the RAG processor to
+        analyze the query and retrieve the most relevant contexts.
+
+        Args:
+            query (str): The query to retrieve context for.
+            simple_mode (Optional[bool]): If provided, overrides the instance's simple_mode setting.
+
+        Returns:
+            List[str]: A list of the most relevant context strings.
+
+        Raises:
+            Exception: If there's an error during context retrieval.
+        """
+
+        if simple_mode is None:
+            simple_mode = self.simple_mode
+
+        topn_contexts = []  # This will be the list of context strings
+        try:
+            logger.info("Retrieving context...")
+            if simple_mode:
+                # In simple mode, only a Google search will be conducted based on the user's question.
+                # This model is not suitable for long questions (e.g., questions with more than 20 words).
+                task_google_search = asyncio.create_task(
+                    self.google_search_retrieval(query=query))
+                await asyncio.gather(task_google_search)
+                logger.debug(
+                    f"Google search: {str(len(task_google_search.result()))}")
+                context_list = self.rag_processor.arrange_context(
+                    google_search_result=task_google_search.result())
+                if len(context_list) > 0:
+                    topn_contexts = await self.rag_processor.retrieve_topn_contexts(
+                        context_list=context_list, query=query, top_n=config.get("top_n_contexts"))
+            else:
+                # Analyzing question and generating strategy
+                analyze_strategy = asyncio.create_task(
+                    self.rag_processor.analyze_question(query))
+                # wait for generate analyze strategy
+                await analyze_strategy
+                analyzed_strategy = analyze_strategy.result()
+                logger.debug(f"Analyze strategy: {analyzed_strategy}")
+
+                # google search from GitHub
+                tokens = self.llm_manager.get_tokenizer().encode(query)
+                query_tokens = len(tokens)
+                task_google_search = asyncio.create_task(
+                    self.google_search_retrieval(query=query if query_tokens < 20 else analyzed_strategy[0]))
+                # code search from GitHub
+                task_code_search = asyncio.create_task(
+                    self.code_search_retrieval(query=analyzed_strategy[0], draft_answer=analyzed_strategy[1]+"\n\n"+analyzed_strategy[2]))
+                # issue search from GitHub
+                task_issue_search = asyncio.create_task(
+                    self.issue_search_retrieval(query=analyzed_strategy[0], draft_answer=analyzed_strategy[1]+"\n\n"+analyzed_strategy[3]))
+                # repo search from GitHub
+                task_repo_search = asyncio.create_task(
+                    self.repo_search_retrieval(query=analyzed_strategy[0]))
+
+                # wait for all tasks to complete
+                await asyncio.gather(task_google_search, task_code_search, task_issue_search, task_repo_search)
+
+                logger.debug(
+                    f"Google search: {str(len(task_google_search.result()))}")
+                logger.debug(
+                    f"Code search: {str(len(task_code_search.result()))}")
+                logger.debug(
+                    f"Issue search: {str(len(task_issue_search.result()))}")
+                logger.debug(
+                    f"Repo search: {str(len(task_repo_search.result()))}")
+
+                context_list = self.rag_processor.arrange_context(
+                    code_search_result=task_code_search.result(),
+                    issue_search_result=task_issue_search.result(),
+                    repo_search_result=task_repo_search.result(),
+                    google_search_result=task_google_search.result())
+
+                if len(context_list) > 0:
+                    topn_contexts = await self.rag_processor.retrieve_topn_contexts(
+                        context_list=context_list, query=query, answer=analyzed_strategy[1], top_n=config.get("top_n_contexts"))
+
+            logger.info("Context retrieved successfully.")
+        except Exception as e:
+            logger.error(f"Error retrieving context: {e}")
+            raise e
+        return topn_contexts
+
+    def retrieve_context(self, query, simple_mode: Optional[bool] = None) -> List[str]:
+        """
+        Retrieve context from GitHub code, issue and repo search based on the input query.
+
+        This method serves as a wrapper for the async_retrieve_context method,
+        handling the asynchronous call in different runtime environments (e.g., Jupyter notebook,
+        asyncio event loop).
+
+        Args:
+            query (str): The query or question to retrieve context for.
+            simple_mode (Optional[bool]): If provided, overrides the instance's simple_mode setting.
+
+        Returns:
+            List[str]: A list of context strings retrieved from the specified GitHub repositories.
+        """
+        effective_simple_mode = self.simple_mode if simple_mode is None else simple_mode
+
+        self.loop = asyncio.get_event_loop()
+        ipython = get_ipython()
+        if ipython and ipython.has_trait('kernel'):
+            logger.debug("Running in Jupyter notebook, nest_asyncio applied.")
+            import nest_asyncio
+            nest_asyncio.apply()
+            return asyncio.run(self.async_retrieve_context(query, simple_mode=effective_simple_mode))
+        if self.loop.is_running():
+            return asyncio.ensure_future(self.async_retrieve_context(query, simple_mode=effective_simple_mode))
+        return self.loop.run_until_complete(self.async_retrieve_context(query, simple_mode=effective_simple_mode))
+
+    async def code_search_retrieval(self, query, draft_answer: Optional[str] = None):
+        """
+        Perform a code search on GitHub based on the given query and draft answer.
+
+        This method uses the RAG processor to generate search criteria, then performs
+        a code search using the GitHub API. It filters and deduplicates the results
+        based on star count and relevance.
+
+        Args:
+            query (str): The main query for the code search.
+            draft_answer (Optional[str]): A draft answer to refine the search criteria.
+
+        Returns:
+            list: A list of unique, relevant code search results.
+
+        Raises:
+            Exception: If there's an error during the code search retrieval.
+        """
+        
+        result = []
+        try:
+            logger.info("Retrieving code search...")
+            search_criterias = await self.rag_processor.get_code_search_criteria(query, draft_answer)
+            for search_criteria in search_criterias:
+                single_search_result = self.github_api_handler.search_code(
+                    search_criteria.replace('"', ''))
+                for d in single_search_result:
+                    result.append(d)
+            # deduplicate results
+            seen = set()
+            unique_list = []
+            for d in result:
+                value = d["url"]
+                if value not in seen and d["stargazers_count"] + config.get("code_search_max_hits") - d["index"] >= config.get("min_stars_to_keep_result"):
+                    seen.add(value)
+                    unique_list.append(d)
+            result = unique_list
+
+            logger.info("Code search retrieved successfully.")
+        except Exception as e:
+            logger.error(f"Error retrieving code search: {e}")
+
+        return result
+
+    async def issue_search_retrieval(self, query, draft_answer: Optional[str] = None):
+        """
+        Perform an issue search on GitHub based on the given query and draft answer.
+
+        This method uses the RAG processor to generate search criteria, then performs
+        an issue search using the GitHub API. It deduplicates the results and transforms
+        the API URLs to official GitHub issue webpage URLs.
+
+        Args:
+            query (str): The main query for the issue search.
+            draft_answer (Optional[str]): A draft answer to refine the search criteria.
+
+        Returns:
+            list: A list of unique, relevant issue search results with transformed URLs.
+
+        Raises:
+            Exception: If there's an error during the issue search retrieval.
+        """
+
+        result = []
+        try:
+            logger.info("Retrieving issue search...")
+            search_criterias = await self.rag_processor.get_issue_search_criteria(query, draft_answer)
+            for search_criteria in search_criterias:
+                single_search_result = self.github_api_handler.search_issues(
+                    search_criteria.replace('"', ''))
+                for d in single_search_result:
+                    result.append(d)
+            # deduplicate results
+            seen = set()
+            unique_list = []
+            for d in result:
+                api_url = d["url"]
+                if api_url not in seen:
+                    seen.add(api_url)
+                    # Transform the API URL to the official GitHub issue webpage URL
+                    html_url = api_url.replace(
+                        'api.github.com/repos', 'github.com').replace('issues/', 'issues/')
+                    d["url"] = html_url
+                    unique_list.append(d)
+            result = unique_list
+
+            logger.info("Issue search retrieved successfully.")
+        except Exception as e:
+            logger.error(f"Error retrieving issue search: {e}")
+
+        return result
+
+    async def google_search_retrieval(self, query):
+        """
+        Perform a Google search for GitHub-related content based on the given query.
+
+        This method uses the Jina AI search API to perform a Google search limited to
+        GitHub.com. It then retrieves the content of the resulting GitHub URLs using
+        the GitHub API.
+
+        Args:
+            query (str): The query to search for on Google.
+
+        Returns:
+            list: A list of dictionaries containing the GitHub URL and its content.
+
+        Raises:
+            Exception: If there's an error during the Google search retrieval.
+        """
+
+        result = []
+        try:
+            logger.info("Retrieving google search...")
+            encoded_query = quote("site:github.com "+query)
+            url = f"https://s.jina.ai/{encoded_query}"
+            if self.jina_api_key is not None and self.jina_api_key != "":
+                headers = {
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {self.jina_api_key}"
+                }
+                retry_delay = 1
+            else:
+                headers = {
+                    "Accept": "application/json"
+                }
+                retry_delay = 20
+
+            response = await AsyncHTTPClient.request(url, headers=headers, retry_count=2, retry_delay=retry_delay)
+            urls = []
+            urls = [item["url"] for item in response["data"] if "url" in item]
+
+            for github_url in urls:
+                content = self.github_api_handler.get_github_url_content(
+                    github_url)
+                if content and content != "":
+                    result.append({
+                        'url': github_url,
+                        'content': content
+                    })
+            logger.info(f"Google search retrieved successfully:{urls}")
+        except Exception as e:
+            logger.error(f"Error retrieving google search: {e}")
+        return result
+
+    def _get_repository_rag_info(self, repository: Repository):
+        """
+        Retrieve RAG-related information for a given repository.
+
+        This helper method fetches the README content and a simple structure
+        of the repository using the Repository object.
+
+        Args:
+            repository (Repository): The Repository object to get information from.
+
+        Returns:
+            tuple: A tuple containing the repository's README content and simple structure.
+        """
+
+        return repository.get_readme(), self.rag_processor.get_repo_simple_structure(repository)
+
+    async def repo_search_retrieval(self, query, draft_answer: Optional[str] = None):
+        """
+        Perform a repository search on GitHub based on the given query and draft answer.
+
+        This method uses the RAG processor to generate search criteria, then performs
+        a repository search using the GitHub API. It retrieves README content and
+        simple structure for each relevant repository concurrently.
+
+        Args:
+            query (str): The main query for the repository search.
+            draft_answer (Optional[str]): A draft answer to refine the search criteria.
+
+        Returns:
+            list: A list of dictionaries containing repository information and content.
+
+        Raises:
+            Exception: If there's an error during the repository search retrieval.
+        """
+
+        result = []
+        results_with_index = []
+        try:
+            logger.info("Retrieving repo search...")
+            search_criterias = await self.rag_processor.get_repo_search_criteria(query, draft_answer)
+            for search_criteria in search_criterias:
+                single_search_result = self.github_api_handler.search_repositories(
+                    search_criteria.replace('"', ''))
+                for d in single_search_result:
+                    result.append(d)
+            # deduplicate results
+            seen = set()
+            unique_list = []
+            for d in result:
+                value = d.full_name
+                if value not in seen:
+                    seen.add(value)
+                    unique_list.append(d)
+            repositories = unique_list
+
+            with ThreadPoolExecutor(max_workers=config.get("max_workers")) as executor:
+                # Concurrently fetch the file content for each code search result
+                future_to_index = {executor.submit(
+                    self._get_repository_rag_info, repository): index for index, repository in enumerate(repositories)}
+                for future in as_completed(future_to_index):
+                    index = future_to_index[future]
+                    repository = repositories[index]
+                    try:
+                        repo_readme, repo_simple_structure = future.result()
+                        if repo_readme is None or repository.description is None or repository.description == "" or repo_simple_structure == "{}":
+                            continue
+                        if repo_readme:
+                            results_with_index.append({
+                                'index': index,
+                                'full_name': repository.full_name,
+                                'url': repository.html_url,
+                                'content': repo_readme,
+                            })
+                        # if repo_simple_structure:
+                        #     results_with_index.append({
+                        #         'index': index,
+                        #         'full_name': repository.full_name,
+                        #         'content': "The repository "+repository.full_name+" with description:" + repository.description+" has below repo simple structure:\n"+repo_simple_structure,
+                        #     })
+                    except Exception as e:
+                        logger.error(
+                            f"Error getting repository info: {e}")
+
+            logger.info("Repo search retrieved successfully.")
+        except Exception as e:
+            logger.error(f"Error retrieving repos search: {e}")
+        return results_with_index
+
+    def answer_with_context(self, query: str, contexts: Optional[List[Dict[str, Any]]] = None, simple_mode=False) -> str:
+        """
+        Generate an answer based on the given query and optional contexts.
+
+        This method serves as a wrapper for the async_answer_with_context method,
+        handling the asynchronous call in different runtime environments (e.g., Jupyter notebook,
+        asyncio event loop).
+
+        Args:
+            query (str): The user's query.
+            contexts (Optional[List[Dict[str, Any]]]): Optional list of context dictionaries.
+                Each dictionary should contain 'content' and 'url' keys.
+            simple_mode (bool): Whether to use simple mode for context retrieval.
+
+        Returns:
+            str: The generated answer.
+        """
+
+        self.loop = asyncio.get_event_loop()
+        ipython = get_ipython()
+        if ipython and ipython.has_trait('kernel'):
+            logger.debug("Running in Jupyter notebook, nest_asyncio applied.")
+            import nest_asyncio
+            nest_asyncio.apply()
+            return asyncio.run(self.async_answer_with_context(query, contexts, simple_mode))
+        if self.loop.is_running():
+            return asyncio.ensure_future(self.async_answer_with_context(query, contexts, simple_mode))
+        return self.loop.run_until_complete(self.async_answer_with_context(query, contexts, simple_mode))
+
+    async def async_answer_with_context(self, query: str, contexts: Optional[List[Dict[str, Any]]] = None, simple_mode=False) -> str:
+        """
+        Asynchronously generate an answer based on the given query and optional contexts.
+
+        This method retrieves contexts if not provided, extracts relevant information,
+        and uses the RAG processor's LLM handler to generate an answer.
+
+        Args:
+            query (str): The user's query.
+            contexts (Optional[List[Dict[str, Any]]]): Optional list of context dictionaries.
+                Each dictionary should contain 'content' and 'url' keys.
+            simple_mode (bool): Whether to use simple mode for context retrieval.
+
+        Returns:
+            str: The generated answer.
+        """
+        
+        if contexts is None:
+            contexts = await self.async_retrieve_context(query, simple_mode)
+            logger.debug(f"Retrieved contexts: {contexts}")
+        context_contents = [context['context'] for context in contexts]
+        context_urls = [context['url'] for context in contexts]
+
+        answer = await self.rag_processor.llm_handler.ainvoke(
+            human_question=query,
+            context=context_contents,
+            # context_urls=context_urls
+        )
+
+        return answer
+
+
+================================================
+File: llama_github/logger.py
+================================================
+import logging
+
+logger = logging.getLogger('llama_github')
+
+def configure_logging(level=logging.INFO, handler=None):
+    logger.setLevel(level)
+    if handler:
+        logger.addHandler(handler)
+    else:
+        # default handler output to console
+        ch = logging.StreamHandler()
+        ch.setLevel(level)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+================================================
+File: llama_github/utils.py
+================================================
+import hashlib
+import base64
+import re
+import asyncio
+import aiohttp
+from typing import Optional, Dict, Any, List, Tuple
+from llama_github.logger import logger
+import difflib
+import ast
+
+class DiffGenerator:
+    """
+    A class for generating custom diffs between two pieces of content.
+    """
+
+    @staticmethod
+    def generate_custom_diff(base_content: str, head_content: str, context_lines: int) -> str:
+        """
+        Generate a custom diff between two pieces of content with specified context lines.
+
+        Args:
+            base_content (str): The original content.
+            head_content (str): The new content to compare against the base.
+            context_lines (int): The number of context lines to include in the diff.
+
+        Returns:
+            str: A string representation of the unified diff.
+
+        Raises:
+            ValueError: If context_lines is negative.
+        """
+        if context_lines < 0:
+            raise ValueError("context_lines must be non-negative")
+        if base_content is None and head_content is None:
+            return ""  # Both contents are None, no diff to generate
+        elif base_content is None:
+            # File is newly added
+            return "".join(f"+ {line}\n" for line in head_content.splitlines())
+        elif head_content is None:
+            # File is deleted
+            return "".join(f"- {line}\n" for line in base_content.splitlines())
+
+        base_lines: List[str] = base_content.splitlines()
+        head_lines: List[str] = head_content.splitlines()
+
+        try:
+            diff: List[str] = list(difflib.unified_diff(base_lines, head_lines, n=context_lines, lineterm=''))
+            return '\n'.join(diff)
+        except Exception as e:
+            logger.exception(f"Error generating diff: {str(e)}")
+            return ""
+
+
+class DataAnonymizer:
+    def __init__(self):
+        self.patterns = {
+            'api_key': r'(?i)(api[_-]?key|sk[_-]live|sk[_-]test|sk[_-]prod|sk[_-]sandbox|openai[_-]?key)\s*[:=]\s*[\'"]?([a-zA-Z0-9-_]{20,})[\'"]?',
+            'token': r'(?i)(token|access[_-]?token|auth[_-]?token|github[_-]?token|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|ghu_[a-zA-Z0-9]{36}|ghr_[a-zA-Z0-9]{36}|ghs_[a-zA-Z0-9]{36})\s*[:=]\s*[\'"]?([a-zA-Z0-9-_]{20,})[\'"]?',
+            'password': r'(?i)password\s*[:=]\s*[\'"]?([^\'"]+)[\'"]?',
+            'email': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+            'ip_address': r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
+            'jwt': r'eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+',
+            'phone_number': r'\+?[0-9]{1,4}?[-.\s]?(\(?\d{1,3}?\)?[-.\s]?)?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}',
+            'url': r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+',
+            'credit_card': r'\b(?:\d[ -]*?){13,16}\b',
+            'ssn': r'\b(?:\d[ -]*?){9}\b',
+            'ipv6': r'(?i)([0-9a-f]{1,4}:){7}([0-9a-f]{1,4}|:)',
+            'mac_address': r'(?i)([0-9a-f]{2}([:-]|$)){6}',
+            'latitude_longitude': r'(?i)(lat|latitude|lon|longitude)\s*[:=]\s*[-+]?([0-9]*\.[0-9]+|[0-9]+),\s*[-+]?([0-9]*\.[0-9]+|[0-9]+)',
+            'driver_license': r'(?i)([A-Z0-9]{1,20})\s*[:=]\s*([A-Z0-9]{1,20})',
+            'date_of_birth': r'(?i)(dob|date[_-]?of[_-]?birth)\s*[:=]\s*([0-9]{4}-[0-9]{2}-[0-9]{2})',
+            'name': r'(?i)(name|first[_-]?name|last[_-]?name)\s*[:=]\s*([a-zA-Z]{2,})',
+            'address': r'(?i)(address|street[_-]?address)\s*[:=]\s*([a-zA-Z0-9\s,]{10,})',
+            'zipcode': r'(?i)(zip|zipcode)\s*[:=]\s*([0-9]{5})',
+            'company': r'(?i)(company|organization)\s*[:=]\s*([a-zA-Z\s]{2,})',
+            'job_title': r'(?i)(job[_-]?title)\s*[:=]\s*([a-zA-Z\s]{2,})',
+            'domain': r'(?i)(domain)\s*[:=]\s*([a-zA-Z0-9.-]{2,})',
+            'hostname': r'(?i)(hostname)\s*[:=]\s*([a-zA-Z0-9.-]{2,})',
+            'port': r'(?i)(port)\s*[:=]\s*([0-9]{2,})',
+        }
+
+    def hash_replacement(match):
+        sensitive_data = match.group(0)
+        hash_object = hashlib.sha256(sensitive_data.encode())
+        hashed_data = base64.urlsafe_b64encode(
+            hash_object.digest()).decode('utf-8')
+        return f'<ANONYMIZED:{hashed_data[:8]}>'
+
+    def anonymize_sensitive_data(self, question):
+        anonymized_question = question
+        for pattern_name, pattern in self.patterns.items():
+            anonymized_question = re.sub(
+                pattern, self.hash_replacement, anonymized_question)
+        return anonymized_question
+
+class AsyncHTTPClient:
+    """
+    Asynchronous HTTP client class for sending asynchronous HTTP requests.
+    """
+
+    @staticmethod
+    async def request(
+        url: str,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        retry_count: int = 1,
+        retry_delay: int = 1,
+    ) -> Optional[aiohttp.ClientResponse]:
+        """
+        Send an asynchronous HTTP request.
+
+        :param url: The URL to send the request to.
+        :param method: The HTTP request method, default is "GET".
+        :param headers: The request headers, default is None.
+        :param data: The request data, default is None.
+        :param retry_count: The number of retries, default is 1.
+        :param retry_delay: The delay in seconds between each retry, default is 1.
+        :return: The response object if the request is successful, otherwise None.
+        """
+        async with aiohttp.ClientSession() as session:
+            for attempt in range(retry_count):
+                try:
+                    async with session.request(
+                        method, url, headers=headers, json=data
+                    ) as response:
+                        if response.status == 200:
+                            return await response.json()
+                        else:
+                            logger.error(
+                                f"Request failed with status code: {response.status}. "
+                                f"Retrying ({attempt + 1}/{retry_count})..."
+                            )
+                except aiohttp.ClientError as e:
+                    logger.error(
+                        f"Request failed with error: {str(e)}. "
+                        f"Retrying ({attempt + 1}/{retry_count})..."
+                    )
+
+                if attempt < retry_count - 1:
+                    await asyncio.sleep(retry_delay)
+
+        return None
+
+class CodeAnalyzer:
+    """
+    A utility class for analyzing Python code.
+    
+    This class provides methods for extracting abstract syntax trees,
+    analyzing imports, and categorizing code changes.
+    """
+
+    @staticmethod
+    def get_ast_representation(code_str: str) -> Optional[str]:
+        """
+        Parses code into an Abstract Syntax Tree (AST) representation.
+
+        :param code_str: The code string to parse.
+        :return: String representation of the AST or None if parsing fails.
+        """
+        if not code_str:
+            return None
+        try:
+            tree = ast.parse(code_str)
+            return ast.dump(tree)
+        except Exception:
+            logger.error("Syntax error in the provided code")
+            return None
+
+    @staticmethod
+    def extract_imports(code_str: str) -> Dict[str, Any]:
+        """
+        Extracts detailed import information from the given code string.
+
+        :param code_str: The code string to analyze.
+        :return: A dictionary containing detailed import information.
+        """
+        import_info = {
+            "standard_imports": [],
+            "third_party_imports": [],
+            "local_imports": [],
+            "from_imports": [],
+            "errors": []
+        }
+
+        if not code_str:
+            return import_info
+
+        try:
+            tree = ast.parse(code_str)
+        except Exception as e:
+            logger.error(f"Syntax error in the provided code: {e}")
+            import_info["errors"].append(str(e))
+            return import_info
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    CodeAnalyzer._categorize_import(alias.name, import_info)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    from_import = {
+                        "module": node.module,
+                        "names": [n.name for n in node.names],
+                        "level": node.level
+                    }
+                    import_info["from_imports"].append(from_import)
+                    CodeAnalyzer._categorize_import(node.module, import_info)
+
+        return import_info
+
+    @staticmethod
+    def _categorize_import(module_name: str, import_info: Dict[str, List[str]]) -> None:
+        """
+        Categorizes an import as standard library, third-party, or local.
+
+        :param module_name: The name of the module to categorize.
+        :param import_info: The dictionary to update with the categorized import.
+        """
+        std_libs = set(CodeAnalyzer._get_standard_library_modules())
+        
+        if module_name in std_libs:
+            import_info["standard_imports"].append(module_name)
+        elif '.' in module_name:
+            import_info["local_imports"].append(module_name)
+        else:
+            import_info["third_party_imports"].append(module_name)
+
+    @staticmethod
+    def _get_standard_library_modules() -> List[str]:
+        """
+        Returns a list of Python standard library module names.
+
+        :return: List of standard library module names.
+        """
+        import sys
+        import pkgutil
+        
+        std_lib = []
+        for module in pkgutil.iter_modules():
+            if module.name not in sys.builtin_module_names:
+                try:
+                    spec = pkgutil.find_loader(module.name)
+                    if spec is not None:
+                        if hasattr(spec, 'get_filename'):
+                            pathname = spec.get_filename()
+                        elif hasattr(spec, 'origin'):
+                            pathname = spec.origin
+                        else:
+                            pathname = None
+                        
+                        if pathname and 'site-packages' not in pathname:
+                            std_lib.append(module.name)
+                except Exception as e:
+                    logger.warning(f"Error processing module {module.name}: {e}")
+                    continue
+        
+        return std_lib + list(sys.builtin_module_names)
+
+    @staticmethod
+    def analyze_imports(code_str: str) -> Tuple[Dict[str, Any], str]:
+        """
+        Analyzes imports and provides a summary.
+
+        :param code_str: The code string to analyze.
+        :return: A tuple containing the import information dictionary and a summary string.
+        """
+        import_info = CodeAnalyzer.extract_imports(code_str)
+        
+        summary = [
+            f"Standard library imports: {len(import_info['standard_imports'])}",
+            f"Third-party imports: {len(import_info['third_party_imports'])}",
+            f"Local imports: {len(import_info['local_imports'])}",
+            f"From imports: {len(import_info['from_imports'])}"
+        ]
+        
+        if import_info['errors']:
+            summary.append(f"Errors encountered: {len(import_info['errors'])}")
+        
+        return import_info, "\n".join(summary)
+
+    @staticmethod
+    def categorize_change(diff_text: str) -> List[str]:
+        """
+        Categorizes the type of code changes based on diff text.
+
+        :param diff_text: The diff text to analyze.
+        :return: A list of change categories.
+        """
+        categories = []
+
+        if not diff_text:
+            categories.append('general_change')
+            return categories
+        
+        patterns = {
+            'function_added': r'^\+.*def\s+\w+\(',
+            'function_removed': r'^-.*def\s+\w+\(',
+            'class_added': r'^\+.*class\s+\w+\(',
+            'class_removed': r'^-.*class\s+\w+\(',
+            'import_added': r'^\+.*import\s+\w+',
+            'import_removed': r'^-.*import\s+\w+'
+        }
+
+        for category, pattern in patterns.items():
+            if re.search(pattern, diff_text, re.MULTILINE):
+                categories.append(category)
+
+        if not categories:
+            categories.append('general_change')
+
+        return categories
+
+================================================
+File: llama_github/version.py
+================================================
+__version__ = '0.2.6'
+
+
+================================================
+File: llama_github/config/config.json
+================================================
+{
+    "general_prompt": "You are a highly intelligent assistant with expertise in GitHub repositories and coding practices. Your primary task is to provide comprehensive and accurate answers to questions related to GitHub projects, coding issues, or programming concepts. When analyzing queries, focus on delivering a complete response that directly addresses the original question. While you may be provided with additional context, use this information judiciously to enhance your answer without deviating from the main point. Your extensive knowledge base, combined with your ability to understand complex coding queries and retrieve pertinent information, should be the foundation of your responses. When referencing provided context, integrate it seamlessly into your answer without explicitly evaluating or critiquing it. Your goal is to guide developers towards solutions, explain concepts clearly, or provide the information they seek about GitHub projects and software development, always ensuring that your final response is a cohesive and complete answer to the original question.",
+    "always_answer_prompt": "**Instructions:**\nAs an advanced AI assistant with deep expertise in GitHub repositories, coding practices, and programming concepts, your primary goal is to provide concise, accurate, and contextually relevant answers to complex coding queries. When presented with a question, your first step is to analyze the query and generate a succinct abstraction that captures its core essence by using only one sentence, especially if the original question is lengthy or convoluted.\n\nNext, leverage your extensive knowledge base and reasoning capabilities to craft a coherent and informative response. If possible, enhance your answer with sample code snippets that demonstrate the practical application of the concepts discussed. Remember, your responses should guide developers towards solving their problems, understanding new concepts, or finding the information they seek related to GitHub projects and software development. Please keep your responses concise and to the point, focusing on the most essential information needed to address the query. Avoid generating long articles or overly detailed explanations.\n\nIn addition to the answer itself, provide a brief analysis of how you would approach searching for relevant code and issues within GitHub repositories. This analysis should outline your thought process and the key factors you would consider when conducting these searches. However, keep this analysis concise and focused on the high-level logic rather than delving into specific search criteria or keywords.\n\nThroughout your responses, prioritize clarity and brevity. Focus on delivering the most essential information needed to address the query effectively. Even if certain details are unknown, ensure that your answers are plausible, useful, and serve as a foundation for further exploration and context generation.\n\nRemember, your ultimate aim is to empower developers with the knowledge and guidance they need to overcome challenges, expand their understanding, and navigate the vast landscape of GitHub repositories and software development practices.",
+    "code_search_criteria_prompt": "**Instructions:**\n- **Expertise-Driven Github Code Search Criteria Generation:** Generate GitHub code search criteria strings based on the provided question and its draft answer. Analyze both the question and answer to identify key concepts, technologies, and coding practices that can help locate relevant code snippets on GitHub. Always include the `language:` qualifier to focus your search on language-related content.\n\n**Output Format:** Present each search criteria string on a new line, formatted for immediate use in GitHub's code search, without additional explanations or commentary.\n\n**Optimization Considerations:**\n- **Keyword Relevance:** Extract keywords and phrases tightly related to the question from the question and answer that are likely to appear in relevant code and code comments. Prioritize terms that reflect specific coding concepts, libraries, or techniques. Avoid generic terms like \"example\" or \"integration\" that may not be present in actual code.\n- **Contextual Understanding:** Use the provided answer as additional context to inform your keyword selection. Identify key insights, technologies, or approaches mentioned in the answer tightly related to the question that can help refine the search criteria.\n- **Language and Platform Specificity:** If the question is specific to a certain programming language or platform, ensure to include relevant language or platform-specific keywords, libraries, or frameworks in the search criteria. This helps filter out irrelevant results from other languages or platforms.\n- **Simplicity and Effectiveness:** Craft search criteria with simple and limited keywords which could lead to precise search results to relevant code snippets tightly related to original question. Strike a balance between specificity and breadth to ensure the criteria capture the essential aspects of the question and answer. The search criteria should be neither too narrow that no results are returned, nor too broad that many irrelevant results are included.\n- **Multiple Perspectives:** Generate multiple search criteria strings that approach the question from different angles or emphasize different aspects mentioned in the question and answer. This increases the chances of finding relevant code snippets.",
+    "issue_search_criteria_prompt": "**Instructions:**\n- **Question-Driven GitHub Issue Search Criteria Generation:** Generate GitHub issue search criteria strings based on the provided question. Analyze the question to identify key concepts, technologies, and problem-solving approaches that can help locate relevant issues on GitHub. Consider using relevant `label:` or `is:` qualifiers when applicable.\n\n**Output Format:** Present each search criteria string on a new line, formatted for immediate use in GitHub's issue search, without additional explanations or commentary.\n\n**Optimization Considerations:**\n- **Keyword Relevance:** Extract keywords and phrases tightly related to the question that are likely to appear in issue titles, descriptions, and discussions. Prioritize terms that reflect specific problems, error messages, or technologies. Avoid generic terms like \"help\" or \"problem\" that may not effectively narrow down the search results.\n- **Contextual Understanding:** Use the question's draft answer to inform your keyword selection. Identify key aspects, technologies, or potential troubleshooting areas tightly related to the question but not only specific aspects of answers that can help refine the search criteria.\n- **Simplicity and Effectiveness:** Craft search criteria with simple and limited keywords which could lead to precise search results relevant to the original question. Strike a balance between specificity and breadth to ensure the criteria capture the essential aspects of the question without being overly restrictive.\n- **Multiple Perspectives:** Generate multiple search criteria strings that approach the question from different angles or emphasize different aspects mentioned in the question. This increases the chances of finding relevant issues that discuss similar problems or solutions.\n- **Leveraging Labels:** When appropriate, include relevant `label:` qualifiers in the search criteria to narrow down the results to issues with specific labels, such as \"bug,\" \"enhancement,\" or \"documentation.\" This can help focus the search on issues that align with the nature of the question.\n- **Considering Issue Discussions:** Keep in mind that issue discussions often contain valuable information, experiences, and workarounds shared by other developers. Craft search criteria that not only match the issue title and description but also consider the likelihood of the keywords appearing in the issue's comments and discussions.",
+    "repo_search_criteria_prompt": "**Instructions:**\n- **Expertise-Driven Github Repository Search Criteria Generation:** Generate GitHub repo search criteria strings based on the provided question. Analyze the question leverage your expertise for related key concepts, technologies, and problem-solving approaches that can help locate relevant repositories on GitHub. Focus on practical keywords and phrases likely to be present in repository names, descriptions, and topics. Use the `language:` qualifier to direct your search toward repositories written in a specific language, keeping the criteria simple and effective.\n- **Necessity Score Determination:** Evaluate the necessity of conducting a GitHub repository search based on the difficulty of question. Determine if repository-level information is essential to comprehensively address the question. Assign a necessity score indicating the importance of performing a repository search.\n\n**Output Format:**\n- **Necessity Score:** Begin your output with a necessity score (0-100) indicating the importance of performing a separate GitHub repository search. Use the following scale:\n  - 0-59: Low necessity - Only code and issue search results is sufficient.\n  - 60-79: Medium necessity - One repository search may offer additional insights and context.\n  - 80-100: High necessity - Two repository searches are crucial to gather comprehensive information, such as project structure, documentation, or community engagement, to thoroughly address the question.\n\n- **Search Criteria:** Present each search criteria string on a new line, formatted for immediate use in GitHub's repository search, without additional explanations or commentary.\n**Optimization Considerations:**\n- **Keyword Relevance:** Generate search criteria keywords and phrases from the question that are uniquely relevant to repository names, descriptions, and topics. Prioritize terms that reflect the broader context, expertise, and strategic thinking required to address the question effectively. Avoid generic terms that may lead to irrelevant search results.\n- **Simplicity and Effectiveness:** Craft search criteria that are simple yet effective in narrowing down the repository search results to the most relevant and informative ones. Strike a balance between specificity and breadth, ensuring that the criteria capture the essential aspects of the question without being overly restrictive. Aim for criteria that yield a manageable number of high-quality repository results.\n- **Language and Platform Specificity:** If the question pertains to a specific programming language or platform, incorporate relevant language or platform-specific keywords in the search criteria. Use the `language:` qualifier to filter repositories based on the language of interest. This helps focus the search on repositories that are more likely to contain relevant code, documentation, and community expertise.\n- **Multiple Criteria Flexibility:** Generate multiple search criteria strings that approach the question from different angles or emphasize different aspects mentioned in the question. This flexibility allows for a more comprehensive repository search, increasing the chances of discovering relevant repositories that may offer valuable insights, code samples, or best practices related to the question at hand.",
+    "scoring_context_prompt": "You are an expert in evaluating the relevance of coding-related contexts to given questions. Your primary function is to analyze the provided context and question, and output a single integer score between 0 and 100, indicating how well the context supports answering the question.\n\nScoring criteria:\n0-20: The context is completely irrelevant to the question and provides no useful information to answer it.\n21-40: The context is slightly relevant to the question but lacks crucial information to provide a complete answer.\n41-60: The context is somewhat relevant to the question and provides some useful information, but it may not be sufficient to fully answer the question.\n61-80: The context is highly relevant to the question and provides most of the necessary information to answer it, but some minor details may be missing.\n81-100: The context is extremely relevant to the question and provides all the necessary information to comprehensively answer it.\n\nRemember, your output should consist of only a single integer score without any additional text or explanation. Analyze the context and question carefully, and provide a score that accurately reflects the relevance of the context in answering the question.",
+    "default_embedding": "jinaai/jina-embeddings-v2-base-code",
+    "default_reranker": "jinaai/jina-reranker-v2-base-multilingual",
+    "min_stars_to_keep_result": 20,
+    "max_workers": 8,
+    "code_search_max_hits": 30,
+    "issue_search_max_hits": 30,
+    "repo_search_max_hits": 10,
+    "chunk_size": 2000,
+    "issue_chunk_size": 7000,
+    "repo_chunk_size": 7000,
+    "google_chunk_size": 7000,
+    "top_n_contexts": 4
+}
+
+================================================
+File: llama_github/config/config.py
+================================================
+# config.py
+import json
+from importlib import resources
+from llama_github.logger import logger
+
+# utils.py
+class SingletonMeta(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+class Config(metaclass=SingletonMeta):
+    _config = None
+
+    def __init__(self):
+        if Config._config is None:
+            with resources.open_text('llama_github.config', 'config.json') as file:
+                Config._config = json.load(file)
+
+    @classmethod
+    def get(cls, key, default=None):
+        # Ensure the singleton instance is created
+        if cls._config is None:
+            cls()
+        return cls._config.get(key, default)
+
+config = Config()
+
+================================================
+File: llama_github/data_retrieval/github_api.py
+================================================
+from github import GithubException
+from .github_entities import Repository, RepositoryPool
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from llama_github.logger import logger
+from llama_github.github_integration.github_auth_manager import ExtendedGithub
+from llama_github.config.config import config
+import re
+from typing import Any, Dict, List
+
+
+class GitHubAPIHandler:
+    def __init__(self, github_instance: ExtendedGithub):
+        """
+        Initializes the GitHubAPIHandler with a GitHub instance.
+
+        :param github_instance: Authenticated instance of a Github client.
+        """
+        self._github = github_instance
+        self.pool = RepositoryPool(github_instance)
+
+    def search_repositories(self, query, sort="best match", order="desc"):
+        """
+        Searches for repositories on GitHub based on a query.
+
+        :param query: The search query string.
+        :param sort: The field to sort the results by. Default is 'stars'.
+        :param order: The order of sorting, 'asc' or 'desc'. Default is 'desc'.
+        :return: A list of Repository objects or None if an error occurs.
+        """
+        try:
+            if sort not in ['stars', 'forks', 'updated']:
+                repositories = self._github.search_repositories(
+                    query=query, order=order)
+            else:
+                repositories = self._github.search_repositories(
+                    query=query, sort=sort, order=order)
+            result = []
+            for i, repo in enumerate(repositories):
+                if i >= config.get("repo_search_max_hits"):
+                    break
+                result.append(
+                    Repository(
+                        repo.full_name,
+                        self._github,
+                        **{
+                            'id': repo.id,
+                            'name': repo.name,
+                            'description': repo.description,
+                            'html_url': repo.html_url,
+                            'stargazers_count': repo.stargazers_count,
+                            'language': repo.language,
+                            'default_branch': repo.default_branch,
+                            'updated_at': repo.updated_at,
+                        }
+                    )
+                )
+            return result
+        except GithubException as e:
+            logger.exception(
+                f"Error searching repositories with query '{query}':")
+            return None
+
+    def get_repository(self, full_repo_name):
+        """
+        Retrieves a single repository by its full name.
+
+        :param full_repo_name: The full name of the repository (e.g., 'octocat/Hello-World').
+        :return: A Repository object or None if an error occurs.
+        """
+        return self.pool.get_repository(full_repo_name)
+
+    def _get_file_content_through_repository(self, code_search_result):
+        """
+        Helper method to get file content through a Repository object.
+
+        :param code_search_result: A single code search result.
+        :return: Tuple containing the Repository object and the file content.
+        """
+        # Assuming RepositoryPool is accessible and initialized somewhere in this class
+        repository_obj = self.get_repository(
+            code_search_result['repository']['full_name'])
+        file_content = repository_obj.get_file_content(
+            code_search_result['path'])
+        return repository_obj, file_content
+    
+    async def get_pr_files(self, repo: Repository, pr_number: int) -> List[Dict[str, Any]]:
+        url = f"{self.base_url}/repos/{repo.full_name}/pulls/{pr_number}/files"
+        headers = {"Authorization": f"token {self.token}"}
+        async with self.session.get(url, headers=headers) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                logger.error(f"Failed to get PR files: {response.status}")
+                return []
+
+    async def get_pr_comments(self, repo: Repository, pr_number: int) -> List[Dict[str, Any]]:
+        url = f"{self.base_url}/repos/{repo.full_name}/issues/{pr_number}/comments"
+        headers = {"Authorization": f"token {self.token}"}
+        async with self.session.get(url, headers=headers) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                logger.error(f"Failed to get PR comments: {response.status}")
+                return []
+
+    def search_code(self, query, repo_full_name=None):
+        """
+        Searches for code on GitHub based on a query, optionally within a specific repository.
+
+        :param query: The search query string.
+        :param repo_full_name: Optional. The full name of the repository (e.g., 'octocat/Hello-World') to restrict the search to.
+        :return: A list of code search results or None if an error occurs.
+        """
+        try:
+            logger.debug(f"Searching code with query '{query}'...")
+            # If a repository full name is provided, include it in the query
+            if repo_full_name:
+                query = f"{query} repo:{repo_full_name}"
+
+            # Perform the search
+            code_results = self._github.search_code(
+                query=query, per_page=config.get("code_search_max_hits"))
+
+            results_with_index = []
+            with ThreadPoolExecutor(max_workers=config.get("max_workers")) as executor:
+                # Concurrently fetch the file content for each code search result
+                future_to_index = {executor.submit(
+                    self._get_file_content_through_repository, code_result): index for index, code_result in enumerate(code_results)}
+                for future in as_completed(future_to_index):
+                    index = future_to_index[future]
+                    code_result = code_results[index]
+                    try:
+                        repository_obj, file_content = future.result()
+                        if repository_obj and file_content:
+                            results_with_index.append({
+                                'index': index,
+                                'name': code_result['name'],
+                                'path': code_result['path'],
+                                'repository_full_name': code_result['repository']['full_name'],
+                                'url': code_result['html_url'],
+                                'content': file_content,
+                                'stargazers_count': repository_obj.stargazers_count,
+                                'watchers_count': repository_obj.watchers_count,
+                                'language': repository_obj.language,
+                                'description': repository_obj.description,
+                                'updated_at': repository_obj.updated_at,
+                            })
+                    except Exception as e:
+                        logger.exception(
+                            f"{code_result['name']} generated an exception:")
+
+            # Sort the results by index to maintain the original order
+            sorted_results = sorted(
+                results_with_index, key=lambda x: x['index'])
+            logger.debug(
+                f"Code search retrieved successfully with {len(sorted_results)} results.")
+            return sorted_results
+        except GithubException as e:
+            logger.exception(f"Error searching code with query '{query}':")
+            return None
+
+    def _get_issue_content_through_repository(self, issue):
+        """
+        Helper method to get issue content through issue url.
+
+        :param code_result: A single code search result.
+        :return: Tuple containing the Repository object and the file content.
+        """
+        # Assuming RepositoryPool is accessible and initialized somewhere in this clas
+        issue_content = ''
+        issue_url = issue['url']
+        # Use regular expressions to extract repo_full_name and issue_number
+        match = re.search(
+            r'https://api.github.com/repos/([^/]+/[^/]+)/issues/(\d+)', issue_url)
+        if match:
+            repo_full_name = match.group(1)
+            issue_number = int(match.group(2))
+            repository_obj = self.get_repository(repo_full_name)
+            issue_content = repository_obj.get_issue_content(
+                number=issue_number, issue=issue)
+        else:
+            logger.warning(
+                f"Failed to extract repo_full_name and issue_number from issue url: {issue_url}")
+        return issue_content
+
+    def search_issues(self, query, repo_full_name=None):
+        """
+        Searches for issues on GitHub based on a query, optionally within a specific repository.
+
+        :param query: The search query string.
+        :param repo_full_name: Optional. The full name of the repository (e.g., 'octocat/Hello-World') to restrict the search to.
+        :return: A list of issue search results or None if an error occurs.
+        """
+        try:
+            logger.debug(f"Searching issue with query '{query}'...")
+            # If a repository full name is provided, include it in the query
+            if repo_full_name:
+                query = f"{query} repo:{repo_full_name}"
+
+            # Perform the search
+            issue_results = self._github.search_issues(
+                query=query, per_page=config.get("issue_search_max_hits"))
+
+            issue_results = [issue for issue in issue_results if issue['body']
+                             is not None and issue['body'] != 'null']
+
+            results_with_index = []
+            with ThreadPoolExecutor(max_workers=config.get("max_workers")) as executor:
+                # Concurrently fetch the issue content for each issue search result
+                future_to_index = {executor.submit(
+                    self._get_issue_content_through_repository, issue): index for index, issue in enumerate(issue_results)}
+                for future in as_completed(future_to_index):
+                    index = future_to_index[future]
+                    issue_result = issue_results[index]
+                    try:
+                        issue_content = future.result()
+                        results_with_index.append({
+                            'index': index,
+                            'url': issue_result['url'],
+                            'created_at': issue_result['created_at'],
+                            'updated_at': issue_result['updated_at'],
+                            'issue_content': issue_content,
+                        })
+                    except Exception as e:
+                        logger.exception(
+                            f"{issue_result['url']} generated an exception:")
+
+            # Sort the results by index to maintain the original order
+            sorted_results = sorted(
+                results_with_index, key=lambda x: x['index'])
+            logger.debug(
+                f"Issue search retrieved successfully with {len(sorted_results)} results.")
+            return sorted_results
+        except GithubException as e:
+            logger.exception(f"Error searching issue with query '{query}':")
+            return None
+
+    def _categorize_github_url(url):
+        repo_pattern = r'^https://github\.com/[^/]+/[^/]+$'
+        issue_pattern = r'^https://github\.com/[^/]+/[^/]+/issues/\d+$'
+        repo_file_pattern = r'^https://github\.com/[^/]+/[^/]+/(?:blob|tree)/[^/]+/.+$'
+        readme_pattern = r'^https://github\.com/[^/]+/[^/]+#readme$'
+
+        if re.match(repo_pattern, url):
+            return "repo"
+        elif re.match(issue_pattern, url):
+            return "issue"
+        elif re.match(repo_file_pattern, url):
+            return "file"
+        elif re.match(readme_pattern, url):
+            return "readme"
+        else:
+            return "other"
+    
+    def get_github_url_content(self, url):
+        """
+        Retrieves the content of a GitHub URL.
+
+        :param url: The GitHub URL to retrieve content from.
+        :return: The content of the URL or None if an error occurs.
+        """
+        try:
+            logger.debug(f"Retrieving content from GitHub URL '{url}'...")
+            content = None
+            category = GitHubAPIHandler._categorize_github_url(url)
+            if category == "repo":
+                # Extract the repository full name from the URL
+                match = re.search(r'https://github\.com/([^/]+/[^/]+)', url)
+                if match:
+                    repo_full_name = match.group(1)
+                    repository_obj = self.get_repository(repo_full_name)
+                    content = repository_obj.get_readme()
+                else:
+                    logger.warning(
+                        f"Failed to extract repository full name from URL: {url}")
+            elif category == "issue":
+                # Use regular expressions to extract repo_full_name and issue_number
+                match = re.search(
+                    r'https://github\.com/([^/]+/[^/]+)/issues/(\d+)', url)
+                if match:
+                    repo_full_name = match.group(1)
+                    issue_number = int(match.group(2))
+                    repository_obj = self.get_repository(repo_full_name)
+                    content = repository_obj.get_issue_content(
+                        number=issue_number)
+                else:
+                    logger.warning(
+                        f"Failed to extract repo_full_name and issue_number from URL: {url}")
+            elif category == "file":
+                # Extract the repository full name and file path from the URL
+                match = re.search(
+                    r'https://github\.com/([^/]+/[^/]+)/(?:blob|tree)/([^/]+)/(.+)', url)
+                if match:
+                    repo_full_name = match.group(1)
+                    file_path = match.group(3)
+                    repository_obj = self.get_repository(repo_full_name)
+                    content = repository_obj.get_file_content(
+                        file_path)
+                else:
+                    logger.warning(
+                        f"Failed to extract repository full name and file path from URL: {url}")
+            elif category == "readme":
+                # Extract the repository full name from the URL
+                match = re.search(r'https://github\.com/([^/]+/[^/]+)#readme', url)
+                if match:
+                    repo_full_name = match.group(1)
+                    repository_obj = self.get_repository(repo_full_name)
+                    content = repository_obj.get_readme()
+                else:
+                    logger.warning(
+                        f"Failed to extract repository full name from URL: {url}")
+            else:
+                logger.warning(f"Unsupported GitHub URL category: {category}")
+            return content
+        except GithubException as e:
+            logger.exception(f"Error retrieving content from GitHub URL '{url}':")
+            return None
+
+================================================
+File: llama_github/data_retrieval/github_entities.py
+================================================
+from github import GithubException
+from threading import Lock, Event, Thread
+from datetime import datetime, timezone
+
+from typing import Optional, Dict, Any, List
+from llama_github.logger import logger
+from llama_github.github_integration.github_auth_manager import ExtendedGithub
+from llama_github.utils import DiffGenerator
+
+import time
+import re
+import json
+from dateutil import parser
+from datetime import timezone
+import base64
+import requests
+
+from llama_github.utils import DiffGenerator, CodeAnalyzer
+
+class Repository:
+    def __init__(self, full_name, github_instance: ExtendedGithub, **kwargs):
+        """
+        Initializes a Repository instance with details and a GitHub instance for API calls.
+
+        :param id: The ID of the repository.
+        :param name: The name of the repository.
+        :param full_name: The full name of the repository (e.g., 'octocat/Hello-World').
+        :param description: The description of the repository.
+        :param html_url: The HTML URL of the repository.
+        :param stargazers_count: The count of stargazers of the repository.
+        :param watchers_count: The count of watchers of the repository.
+        :param language: The primary language of the repository.
+        :param forks_count: The count of forks of the repository.
+        :param github_instance: Authenticated instance of a Github client.
+        """
+
+        self._github = github_instance
+        self.full_name = full_name
+
+        self.id = kwargs.get("id")
+        self.name = kwargs.get("name")
+        self.description = kwargs.get("description")
+        self.html_url = kwargs.get("html_url")
+        self.stargazers_count = kwargs.get("stargazers_count")
+        self.language = kwargs.get("language")
+        self.default_branch = kwargs.get("default_branch")
+        self.updated_at = kwargs.get("updated_at")
+        self.watchers_count = None
+
+        self.creation_time = datetime.now(timezone.utc)
+        self.last_read_time = datetime.now(timezone.utc)
+
+        self._repo = None
+
+        # Locking for write action
+        self._structure_lock = Lock()
+        self._file_contents_lock = Lock()
+        self._issue_lock = Lock()
+        self._pr_lock = Lock()
+        self._readme_lock = Lock()
+        self._repo_lock = Lock()
+
+        if (self.id is None) or \
+            (self.name is None) or \
+            (self.full_name is None) or \
+            (self.html_url is None) or \
+            (self.stargazers_count is None) or \
+            (self.default_branch is None) or \
+                (self.updated_at is None):
+            self.get_repo()
+
+        self._structure = None  # Singleton pattern for repository structure
+        self._file_contents = {}  # Singleton pattern for file contents
+        self._issues = {}  # Singleton pattern for file contents
+        self._readme = None  # Singleton pattern for README content
+        self._prs = {}  # Singleton pattern for PR content
+
+    def update_last_read_time(self):
+        self.last_read_time = datetime.now(timezone.utc)
+
+    def get_readme(self) -> str:
+        """
+        Retrieves the README content of the repository using a singleton design pattern.
+        """
+        if self._readme is None:  # Check if README content has already been fetched
+            with self._readme_lock:  # Locking for write action
+                if self._readme is None:  # Check if README content has already been fetched after get lock
+                    try:
+                        readme = self.repo.get_readme()
+                        self._readme = readme.decoded_content.decode("utf-8")
+                    except GithubException as e:
+                        logger.exception(
+                            f"Error getting README for repository {self.full_name}:")
+                        self._readme = None
+        self.update_last_read_time()
+        return self._readme
+
+    @property
+    def repo(self):
+        return self.get_repo()
+    
+    def set_github(self, github_instance: ExtendedGithub):
+        self._github = github_instance
+        with self._repo_lock:  # Locking for write action
+            self._repo = self._github.get_repo(self.full_name)
+
+    def get_repo(self):
+        """
+        Retrieves the Github Repo object of the repository using a singleton design pattern.
+        """
+        if self._repo is None:  # Check if repo object has already been fetched
+            with self._repo_lock:  # Locking for write action
+                if self._repo is None:
+                    try:
+                        self._repo = self._github.get_repo(self.full_name)
+                        self.id = self._repo.id
+                        self.name = self._repo.name
+                        self.description = self._repo.description
+                        self.html_url = self._repo.html_url
+                        self.stargazers_count = self._repo.stargazers_count
+                        self.watchers_count = self._repo.subscribers_count
+                        self.language = self._repo.language
+                        self.default_branch = self._repo.default_branch
+                        self.updated_at = self._repo.updated_at
+                    except GithubException as e:
+                        logger.error(
+                            f"Error retrieving repository '{self.full_name}':{str(e)}")
+                        return None
+        self.update_last_read_time()
+        return self._repo
+    
+    def get_structure(self, path="/") -> dict:
+        """
+        Retrieves the structure of the repository using a singleton design pattern.
+        """
+        if self._structure is None:  # Check if structure has already been fetched
+            with self._structure_lock:  # Locking for write action
+                if self._structure is None:  # Check if structure has already been fetched after get lock
+                    try:
+                        self._structure = self._github.get_repo_structure(
+                            self.full_name, self.default_branch)
+                    except GithubException as e:
+                        logger.exception(
+                            f"Error getting structure for repository {self.full_name}:")
+                        self._structure = None
+        self.update_last_read_time()
+        return self._structure
+    
+    def get_file_content(self, file_path: str, sha: Optional[str] = None) -> Optional[str]:
+        """
+        Retrieves the content of a file using a singleton design pattern with improved encoding handling.
+
+        This method first checks if the file content is already cached. If not, it fetches the content
+        from the GitHub repository, handles potential encoding issues, and caches the result.
+
+        :param file_path: The path to the file in the repository.
+        :param sha: The commit SHA. If None, the latest version is fetched.
+        :return: The file content as a string or None if not found or on error.
+        """
+        file_key = f"{file_path}/{sha}" if sha is not None else file_path
+
+        # Skip files that don't need processing
+        if any(file_path.endswith(ext) for ext in [
+            # Binary and Compiled Files
+            '.exe', '.dll', '.so', '.dylib', '.bin', '.obj', '.o', '.a',
+            '.lib', '.jar', '.war', '.ear', '.class', '.pdb', '.ilk', '.exp',
+            '.apk', '.aab', '.ipa', '.wasm',
+            
+            # Media Files
+            '.png', '.jpg', '.jpeg', '.gif', '.ico', '.bmp', '.tiff', '.webp',
+            '.svg', '.eps', '.psd', '.ai', '.sketch',
+            '.mp3', '.mp4', '.wav', '.flac', '.ogg', '.m4a',
+            '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv',
+            '.ttf', '.otf', '.eot', '.woff', '.woff2',
+            
+            # Compressed and Binary Data
+            '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.tgz',
+            '.pkl', '.pickle',
+            '.npy', '.npz',
+            '.h5', '.hdf5',
+            
+            # Lock Files and Dependencies
+            '.lock', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+            'Gemfile.lock', 'poetry.lock', 'Cargo.lock', 'composer.lock',
+            
+            # Compiled Python
+            '.pyc', '.pyo',
+            
+            # System and Hidden Files
+            '.DS_Store', 'Thumbs.db',
+            
+            # Generated Code Files
+            '.g.dart', '.freezed.dart',
+            '.pb.go',
+            '_pb2.py', '_pb2_grpc.py',
+            '.generated.ts', '.generated.tsx',
+            '.proto.ts', '.proto.js',
+            '.min.js', '.min.css',
+            '.bundle.js', '.bundle.css',
+            '.chunk.js', '.chunk.css',
+            
+            # IDE Generated
+            '.pbxproj', '.xcworkspacedata',
+            '.csproj.user', '.suo',
+            '.iml', '.ipr', '.iws',
+            
+            # Map Files
+            '.map', '.js.map', '.css.map',
+
+            # PowerBI Binary and Cache Files
+            '.pbix',       # PowerBI packaged report file - binary format containing report, data model and resources
+            '.pbit',       # PowerBI template file - binary format for report templates
+            '.abf',        # Analysis Services Backup File - contains model and data cache
+
+            # PowerBI Dataset Files
+            '.bim',        # Analysis Services Tabular Model file - contains data model definitions
+            '.database',   # PowerBI database definition file - auto-generated
+            '.deploymentoptions',  # Deployment configuration file - auto-generated
+            '.deploymenttargets',  # Deployment targets file - auto-generated
+
+        ]) or any(pattern in file_path for pattern in [
+            # Cache and Temporary Directories
+            '/__pycache__/',
+            '/.git/',
+            '/.idea/',
+            '/.vscode/',
+            '/.vs/',
+            '/.svn/',
+            '/.hg/',
+            '/.sass-cache/',
+            '/.parcel-cache/',
+            '/.cache/',
+            '/tmp/',
+            '/temp/',
+            
+            # Package Manager Directories
+            '/node_modules/',
+            '/bower_components/',
+            
+            # Test Coverage and Reports
+            '/coverage/',
+            '/.nyc_output/',
+            '/.pytest_cache/',
+            '/.tox/',
+            
+            # Environment and Runtime
+            '/venv/',
+            '/.env/',
+            '/.virtualenv/',
+            
+            # Framework Generated
+            '/.dart_tool/',
+            '/.pub-cache/',
+            '/.angular/',
+            '/.nuxt/',
+            '/.next/',
+            '/.ipynb_checkpoints/',
+            
+            # CI/CD
+            '/.github/workflows/',
+            '/.gitlab/ci/',
+            '/.circleci/',
+            
+            # Logs
+            '/logs/',
+            '/log/',
+
+            # PowerBI Specific Directories
+            '/.pbi/',           # PowerBI cache and temporary files directory
+            '/Dataset/.pbi/',   # PowerBI dataset cache directory
+            '/.pbixproj/',      # PowerBI project configuration directory - contains auto-generated files
+            
+            # Binary Assets
+            '/assets/images/',
+            '/assets/fonts/',
+            '/assets/media/',
+            '/public/images/',
+            '/public/fonts/',
+            '/static/images/',
+            '/static/fonts/'
+        ]):
+            logger.debug(f"Skipping non-processable file: {file_path}")
+            return None
+
+        if file_key not in self._file_contents:  # Check if file content has already been fetched
+            with self._file_contents_lock:  # Locking for thread-safe write action
+                if file_key not in self._file_contents:  # Double-check after acquiring the lock
+                    try:
+                        if sha is not None:
+                            file_content = self.repo.get_contents(file_path, ref=sha)
+                        else:
+                            file_content = self.repo.get_contents(file_path)
+                        
+                        # Handle directory case
+                        if isinstance(file_content, list):
+                            logger.debug(f"Path {file_path} is a directory")
+                            return None
+
+                        # Improved encoding handling
+                        if file_content.encoding == 'base64':
+                            decoded_content = base64.b64decode(file_content.content).decode('utf-8')
+                        elif (file_content.encoding is None or file_content.encoding == 'none') and hasattr(file_content, 'download_url') and file_content.download_url:
+                            try:
+                                logger.debug(f"Downloading file {file_path} from {file_content.download_url}")
+                                # Use requests to download the file content
+                                response = requests.get(
+                                    file_content.download_url,
+                                    timeout=30,
+                                    headers={'Accept': 'application/vnd.github.v3.raw'}
+                                )
+                                response.raise_for_status()
+                                decoded_content = response.text
+                            except requests.RequestException as e:
+                                logger.error(f"Failed to download file {file_path}: {str(e)}")
+                                return None
+                        else:
+                            decoded_content = file_content.decoded_content.decode('utf-8')
+                        
+                        self._file_contents[file_key] = decoded_content
+                    except GithubException as e:
+                        logger.exception(
+                            f"Error getting file content for {file_key} in repository {self.full_name}:")
+                        return None
+                    except UnicodeDecodeError as e:
+                        logger.exception(
+                            f"Error decoding file content for {file_key} in repository {self.full_name}:")
+                        return None
+
+        self.update_last_read_time()
+        return self._file_contents.get(file_key)
+
+
+    def get_issue_content(self, number, issue=None) -> str:
+        """
+        Retrieves the content of a issue using a singleton design pattern.
+        """
+        if number not in self._issues:  # Check if issue has already been fetched
+            with self._issue_lock:  # Locking for write action
+                if number not in self._issues:  # Check if issue has already been fetched after get lock
+                    try:
+                        if issue is None:
+                            issue = self.repo.get_issue(number=number)
+                            comments_amount = issue.comments
+                            body_content = "This is a Github Issue related to repo \"" + (self.full_name or "") + "\". Repo description:" + (self.description or "") +\
+                                "\n\nIssue Title: "+issue.title+"\nIssue state: "+issue.state + \
+                                "\nIssue last updated at: "+str(issue.updated_at) + \
+                                "\nTotal favour: " + \
+                                str(issue.reactions['total_count']) + \
+                                "\nComment amount: " + \
+                                str(comments_amount) + \
+                                "\nIssue body:\n" + \
+                                (re.sub(r'\n+\s*\n+', '\n',
+                                    (issue.body or "").replace('\r', '\n').strip()) if issue.body else "No issue body provided")
+                        else:
+                            comments_amount = issue['comments']
+                            body_content = "This is a Github Issue related to repo \"" + (self.full_name or "") + "\". Repo description:" + (self.description or "") +\
+                                "\n\nIssue title: "+issue['title']+"\nIssue state: "+issue['state'] + \
+                                "\nIssue last updated at: "+str(issue['updated_at']) + \
+                                "\nTotal favour: " + \
+                                str(issue['reactions']['total_count']) + \
+                                "\nComment amount: " + \
+                                str(comments_amount) + \
+                                "\nIssue body:\n" + \
+                                re.sub(
+                                    r'\n+\s*\n+', '\n', issue['body'].replace('\r', '\n').strip())
+                        if comments_amount > 0:
+                            comments = self._github.get_issue_comments(
+                                repo_full_name=self.full_name, issue_number=number)
+                            comments_text_list = []
+                            for index, comment in enumerate(comments, start=1):
+                                cleaned_body = re.sub(
+                                    r'\n+\s*\n+', '\n', comment['body'].replace('\r', '\n').strip())
+                                comment_text = (
+                                    f"Comment No.{index} - comment author type: {comment['user']['type']}; "
+                                    f"comment total favour: {comment['reactions']['total_count']}\n"
+                                    f"Comment body:\n{cleaned_body}\n"
+                                )
+                                comments_text_list.append(comment_text)
+                            comments_text = "\n".join(comments_text_list)
+                            issue_content = body_content + "\n\nIssue Comments:\n" + comments_text
+                        else:
+                            issue_content = body_content
+                        self._issues[number] = issue_content.strip()
+                    except GithubException as e:
+                        logger.exception(
+                            f"Error getting issue content for {number} in repository {self.full_name}:")
+                        return None
+                    except Exception as e:
+                        logger.error(f"Unexpected error processing : {str(e)}")
+                        return None
+        self.update_last_read_time()
+        return self._issues[number]
+    
+    def extract_related_issues(self, pr_data: Dict[str, Any]) -> List[int]:
+        """
+        Extracts related issue numbers from all PR data following GitHub's reference syntax.
+        
+        This function implements GitHub's official autolink reference formats to find:
+        1. Full GitHub issue/PR URLs
+        2. Numeric references (#123)
+        3. Keywords + issue references (fixes #123)
+        4. Repository cross-references (owner/repo#123)
+        
+        See: https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls
+        
+        Args:
+            pr_data: Dict[str, Any] - The complete pull request data dictionary
+            
+        Returns:
+            List[int] - A sorted list of unique issue numbers found in the PR data
+        """
+        # GitHub's official closing keywords
+        closing_keywords = (
+            'close', 'closes', 'closed',
+            'fix', 'fixes', 'fixed',
+            'resolve', 'resolves', 'resolved'
+        )
+
+        # Regex patterns for GitHub issue references
+        patterns = [
+            # Full GitHub issue/PR URL pattern
+            rf'(?:https?://)?github\.com/{re.escape(self.full_name)}/(?:issues|pull)/(\d+)',
+            
+            # # Standard #123 reference with proper boundaries
+            # r'(?:^|[^\w/])#(\d+)(?=[^\w/]|$)',
+            
+            # Closing keywords (fixes #123)
+            fr'(?:^|[^\w/])(?:{"|".join(closing_keywords)}):?\s+#(\d+)(?=[^\w/]|$)',
+            
+            # Cross-repo reference (owner/repo#123)
+            rf'{re.escape(self.full_name)}#(\d+)',
+            
+            # Issue keyword reference (issue #123 or issue: #123)
+            r'(?:^|[^\w/])(?:issue|bug|ticket|todo|task)s?:?\s+#?(\d+)(?=[^\w/]|$)'
+        ]
+
+        issues = set()
+        
+        def extract_from_text(text: str) -> None:
+            """Helper function to extract issue numbers from text"""
+            if not isinstance(text, str):
+                return
+                
+            for pattern in patterns:
+                matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
+                # Validate issue numbers (reasonable length and positive values)
+                valid_matches = [
+                    int(match) for match in matches 
+                    if match.isdigit() and len(match) <= 7 and int(match) > 0
+                ]
+                issues.update(valid_matches)
+
+        def process_value(value: Any) -> None:
+            """Recursively process dictionary values and extract issue numbers"""
+            if isinstance(value, dict):
+                for v in value.values():
+                    process_value(v)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    process_value(item)
+            elif isinstance(value, str):
+                extract_from_text(value)
+
+        # Process all data in pr_data recursively
+        process_value(pr_data)
+        
+        return sorted(list(issues))
+
+
+    def get_issue_contents(self, issue_numbers: List[int], pr_number: int) -> List[Dict[str, Any]]:
+        """
+        Retrieves contents for a list of issue numbers, excluding the PR number.
+
+        :param issue_numbers: List of issue numbers.
+        :param pr_number: The PR number to exclude.
+        :return: A list of issue contents.
+        """
+        return [
+            {
+                "issue_number": issue_number,
+                "issue_content": self.get_issue_content(issue_number)
+            }
+            for issue_number in issue_numbers
+            if issue_number != pr_number
+        ]
+    
+    def to_isoformat(self, dt: datetime) -> Optional[str]:
+        """
+        Converts a datetime object to ISO 8601 format with UTC timezone.
+
+        :param dt: The datetime object to convert.
+        :return: ISO 8601 formatted string or None if dt is None.
+        """
+        if dt:
+            return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+        return None
+
+    def get_pr_content(self, number, pr=None, context_lines=10, force_update=False) -> Dict[str, Any]:
+        """
+        Retrieves and processes the content of a pull request.
+
+        :param number: The PR number.
+        :param pr: Optional PR object.
+        :param context_lines: Number of context lines for diffs.
+        :return: A dictionary containing detailed PR information.
+        """
+        if number not in self._prs or force_update:  # Check if issue has already been fetched
+            with self._pr_lock:  # Locking for write action
+                if number not in self._prs or force_update:  # Check if issue has already been fetched after get lock
+                    try:
+                        logger.debug(f"Processing PR #{number}")
+                        if pr is None:
+                            pr = self.repo.get_pull(number)
+                        pr_files = self._github.get_pr_files(self.full_name, pr.number)
+                        pr_comments = self._github.get_pr_comments(self.full_name, pr.number)
+
+                        # Prepare PR metadata with standardized time formats
+                        pr_data = {
+                            "pr_metadata": {
+                                "number": pr.number,
+                                "title": pr.title,
+                                "description": pr.body,
+                                "author": pr.user.login,
+                                "author_association": pr.raw_data['author_association'],
+                                "created_at": self.to_isoformat(pr.created_at),
+                                "updated_at": self.to_isoformat(pr.updated_at),
+                                "merged_at": self.to_isoformat(pr.merged_at),
+                                "state": pr.state,
+                                "base_branch": pr.base.ref,
+                                "head_branch": pr.head.ref,
+                            },
+                            "related_issues": [],
+                            "commits": [],
+                            "file_changes": [],
+                            "ci_cd_results": [],
+                            "interactions": []
+                        }
+
+                        # Extract related issues from PR description and comments
+                        related_issues = self.extract_related_issues(pr_data)
+                        pr_data['related_issues'] = self.get_issue_contents(related_issues, pr.number)
+
+                        # Fetch CI/CD results
+                        try:
+                            last_commit = pr.get_commits().reversed[0]
+                            statuses = last_commit.get_statuses()
+                            ci_cd_results = {
+                                "state": None,  # We'll set this later
+                                "statuses": [],
+                                "check_runs": []
+                            }
+                            
+                            # Process statuses
+                            for status in statuses:
+                                if ci_cd_results["state"] is None:
+                                    ci_cd_results["state"] = status.state
+                                ci_cd_results["statuses"].append({
+                                    "context": status.context,
+                                    "state": status.state,
+                                    "description": status.description,
+                                    "target_url": status.target_url,
+                                    "created_at": self.to_isoformat(status.created_at),
+                                    "updated_at": self.to_isoformat(status.updated_at),
+                                })
+
+                            # Fetch check runs for detailed CI/CD outputs
+                            check_runs = last_commit.get_check_runs()
+                            for check_run in check_runs:
+                                ci_cd_results["check_runs"].append({
+                                    "name": check_run.name,
+                                    "status": check_run.status,
+                                    "conclusion": check_run.conclusion,
+                                    "started_at": self.to_isoformat(check_run.started_at) if check_run.started_at else None,
+                                    "completed_at": self.to_isoformat(check_run.completed_at) if check_run.completed_at else None,
+                                    "details_url": check_run.html_url,  # Changed from details_url to html_url
+                                })
+
+                            pr_data["ci_cd_results"] = ci_cd_results
+                        except GithubException as e:
+                            logger.exception(f"Error fetching CI/CD results for PR #{number}")
+                        except IndexError as e:
+                            logger.exception(f"No commits found for PR #{number}")
+
+                        # Combine comments and reviews, and sort by creation time
+                        pr_interactions = []
+
+                        # Process PR comments
+                        for comment in pr_comments:
+                            created_at_dt = parser.isoparse(comment["created_at"])
+                            formatted_created_at = self.to_isoformat(created_at_dt)
+                            pr_interactions.append({
+                                "type": "pr_comment",
+                                "author": comment["user"]["login"],
+                                "author_association": comment["author_association"],
+                                "content": comment["body"],
+                                "created_at": formatted_created_at,
+                                "comment_id": comment["id"]
+                            })
+
+                        # Process reviews and inline comments
+                        reviews = pr.get_reviews()
+                        review_comments = pr.get_review_comments()
+                        for review in reviews:
+                            pr_review = {
+                                "type": "review",
+                                "author": review.user.login,
+                                "author_association": review.raw_data['author_association'],
+                                "content": review.body,
+                                "state": review.state,
+                                "created_at": self.to_isoformat(review.submitted_at),
+                                "comment_id": review.id
+                            }
+                            # Process inline comments with threading
+                            for comment in review_comments:
+                                if comment.pull_request_review_id == review.id:
+                                    pr_review["type"] = "inline_comment"
+                                    pr_review["content"] = comment.body
+                                    pr_review["path"] = comment.path
+                                    pr_review["diff_hunk"] = comment.diff_hunk
+                            pr_interactions.append(pr_review)
+
+                        # Sort interactions by creation time
+                        pr_interactions.sort(key=lambda x: parser.isoparse(x["created_at"]))
+                        pr_data["interactions"] = pr_interactions
+
+                        # Fetch and process commits
+                        try:
+                            commits = pr.get_commits()
+                            for commit in commits:
+                                commit_data = {
+                                    "sha": commit.sha,
+                                    "message": commit.commit.message,
+                                    "author": commit.commit.author.name,
+                                    "date": self.to_isoformat(commit.commit.author.date),
+                                    "stats": {
+                                        "additions": commit.stats.additions,
+                                        "deletions": commit.stats.deletions,
+                                        "total": commit.stats.total
+                                    },
+                                    "files": [f.filename for f in commit.files]  # Just keep changed file names
+                                }
+                                pr_data["commits"].append(commit_data)
+                        except GithubException as e:
+                            logger.exception(f"Error fetching commits for PR #{number}")
+                            pr_data["commits"] = []
+                            pr_data["commit_stats"] = {}
+
+                        # Process file changes
+                        comparison = None
+                        dependency_files = ['requirements.txt', 'Pipfile', 'Pipfile.lock', 'setup.py']
+                        config_files = ['.env', 'settings.py', 'config.yaml', 'config.yml', 'config.json']
+                        for file in pr_files:
+                            file_path = file['filename']
+                            change_type = file['status']
+                            language = file.get('language', self.language)
+                            additions = file['additions']
+                            deletions = file['deletions']
+                            changes = file['changes']
+
+                            # Fetch file content for base and head versions
+                            if change_type == 'removed':
+                                base_content = self.get_file_content(file_path=file_path, sha=pr.base.sha)
+                                head_content = None
+                            elif change_type == 'added':
+                                base_content = None
+                                head_content = self.get_file_content(file_path=file_path, sha=pr.head.sha)
+                            else:
+                                base_content = self.get_file_content(file_path=file_path, sha=pr.base.sha)
+                                head_content = self.get_file_content(file_path=file_path, sha=pr.head.sha)
+
+                            # Generate custom diff with specified context lines
+                            if base_content is None and head_content is None:
+                                custom_diff = '[SKIPPED] File type not suitable for diff analysis'
+                            else:
+                                custom_diff = DiffGenerator.generate_custom_diff(base_content, head_content, context_lines)
+                                if not custom_diff or custom_diff.strip() == '':
+                                    try:
+                                        #use compare API if custom diff is empty
+                                        if not comparison:
+                                            comparison = self.repo.compare(pr.base.sha, pr.head.sha)
+                                        patches = [f.patch for f in comparison.files if f.filename == file_path]
+                                        custom_diff = patches[0] if patches else None
+                                    except Exception as e:
+                                        logger.exception(f"Error fetching file diff for PR #{number}")
+                                        custom_diff = ''
+
+                            # Categorize code changes
+                            change_categories = CodeAnalyzer.categorize_change(custom_diff)
+
+                            # Extract imports from head content
+                            related_modules = CodeAnalyzer.extract_imports(head_content) if language == 'Python' and head_content else []
+
+                            # Build file change entry
+                            file_change = {
+                                "file_path": file_path,
+                                "change_type": change_type,
+                                "diff": custom_diff,
+                                "language": language,
+                                "additions": additions,
+                                "deletions": deletions,
+                                "changes": changes,
+                                "change_categories": change_categories,
+                                "related_modules": related_modules
+                            }
+
+                            # Check for dependency changes
+                            if file_path in dependency_files:
+                                pr_data.setdefault("dependency_changes", []).append({
+                                    "file_path": file_path,
+                                    "content": head_content
+                                })
+
+                            # Check for configuration changes
+                            if file_path in config_files:
+                                pr_data.setdefault("config_changes", []).append({
+                                    "file_path": file_path,
+                                    "content": head_content
+                                })
+
+                            pr_data['file_changes'].append(file_change)
+                            logger.debug(f"Processed file: {file_path}")
+
+                        self._prs[number] = pr_data
+                        logger.debug(f"Collected details for PR #{number}: {pr.title}")
+                    except Exception as e:
+                        logger.exception(f"Error getting PR content for #{number} in repository {self.full_name}")
+        self.update_last_read_time()
+        return self._prs[number]
+
+    def __str__(self):
+        """
+        String representation of the Repository instance.
+
+        :return: A string describing the repository.
+        """
+        self.update_last_read_time()
+        return f"{self.full_name} - {self.description}"
+
+    def clear_cache(self):
+        """
+        Clears the cached data of the repository, including structure, file contents, and README content.
+        """
+        with self._structure_lock:
+            self._structure = None  # Reset the repository structure cache
+        with self._file_contents_lock:
+            self._file_contents = {}  # Reset the file contents cache
+        with self._issue_lock:
+            self._issues = {}  # Reset the issue contents cache
+        with self._readme_lock:
+            self._readme = None  # Reset the README content cache
+        with self._repo_lock:
+            self._repo = None  # Reset the Repo cache
+        with self._pr_lock:
+            self._prs = {}  # Reset the PR cache
+
+
+class RepositoryPool:
+    _instance_lock = Lock()
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:  # First check (unlocked)
+            with cls._instance_lock:  # Acquire lock
+                if cls._instance is None:  # Second check (locked)
+                    cls._instance = super(RepositoryPool, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self, github_instance, cleanup_interval=3600, max_idle_time=86400):
+        if not hasattr(self, 'initialized'):
+            with self._instance_lock:   # Prevent re-initialization
+                if not hasattr(self, 'initialized'):
+                    self.initialized = True
+                    self._locks_registry = {}  # A registry for repository-specific locks
+                    self._registry_lock = Lock()  # A lock to protect the locks registry
+                    self._pool = {}  # The repository pool
+                    self.github_instance = github_instance
+                    self.cleanup_interval = cleanup_interval  # How often to run cleanup in seconds
+                    self.max_idle_time = max_idle_time  # Maximum idle time in seconds
+                    self._cleanup_thread = Thread(
+                        target=self._cleanup, daemon=True)
+                    self._stop_event = Event()
+                    self._cleanup_thread.start()
+
+    def _cleanup(self):  # Internal method for cleaning up idle repository objects' cache content, not real delete repository objects
+        """Periodically checks and removes idle repository objects."""
+        while not self._stop_event.is_set():
+            with self._registry_lock:
+                current_time = datetime.now(timezone.utc)
+                for full_name in list(self._pool.keys()):
+                    repo = self._pool[full_name]
+                    if ((current_time - repo.last_read_time).total_seconds() > self.max_idle_time) or \
+                        ((current_time - repo.creation_time).total_seconds() > 7 * self.max_idle_time and
+                         (current_time - repo.last_read_time).total_seconds() > (self.max_idle_time // 4) + 1):
+                        # release the lock due to object already created
+                        del self._locks_registry[full_name]
+                        # clear the cache content of repository object
+                        self._pool[full_name].clear_cache()
+            time.sleep(self.cleanup_interval)
+
+    def stop_cleanup(self):
+        """Stops the cleanup thread."""
+        self._stop_event.set()
+
+    def _get_repo_lock(self, full_name):
+        """Retrieve or create a lock for a specific repository."""
+        with self._registry_lock:
+            if full_name not in self._locks_registry:
+                # Create a new lock for the repository creation
+                self._locks_registry[full_name] = Lock()
+            return self._locks_registry[full_name]
+
+    def get_repository(self, full_name, github_instance=None, **kwargs) -> Repository:
+        """
+        Retrieve a repository from the pool or create a new one if it doesn't exist.
+        
+        If you are using github_install_id to generate a new repository object, you should pass new github_instance to the function.
+        Otherwise the default github_instance within the pool might not fit to the new repository object.
+        """
+
+        if full_name in self._pool:
+            # repo = self._pool[full_name]
+            # repo.update_last_read_time()
+            # if github_instance is not None:
+            #     repo.set_github(github_instance)
+            # return repo
+            return self._pool[full_name]
+        
+        repo_lock = self._get_repo_lock(full_name)
+        with repo_lock:
+            if full_name not in self._pool:
+                if github_instance is not None:
+                    repo = Repository(full_name, github_instance, **kwargs)
+                else:
+                    repo = Repository(full_name, self.github_instance, **kwargs)
+                self._pool[full_name] = repo
+
+        return self._pool[full_name]
+
+
+================================================
+File: llama_github/github_integration/__init__.py
+================================================
+# Import the AuthManager for easy access
+from .github_auth_manager import GitHubAuthManager
+
+# Define what is available for import
+__all__ = ["GitHubAuthManager"]
+
+# Any initialization code specific to GitHub integration can go here
+
+
+================================================
+File: llama_github/github_integration/github_auth_manager.py
+================================================
+# To do list:
+# 1. add the mechanism for installation_access_token and github_instance refreshment in authenticate_with_app model
+# 2. add re-try mechanism for the API calls
+# 3. add the mechanism for the rate limit handling
+# 4. add the mechanism for the error handling
+# 5. add the mechanism for the logging
+# 6. add search issues functionality
+# 7. add search discussions functionality through Github GraphQL API
+
+from github import Github, GithubIntegration
+import requests
+from requests.adapters import HTTPAdapter
+from requests.exceptions import HTTPError, RequestException
+from urllib3.util.retry import Retry
+from llama_github.logger import logger
+
+
+class GitHubAuthManager:
+    def __init__(self):
+        self.github_instance = None
+        self.access_token = None
+        self.app_id = None
+        self.private_key = None
+        self.installation_id = None
+
+    def authenticate_with_token(self, access_token):
+        """
+        Authenticate using a personal access token or an OAuth token.
+        Suitable for individual developers and applications using OAuth for authorization.
+        """
+        self.access_token = access_token
+        self.github_instance = ExtendedGithub(login_or_token=access_token)
+        return self.github_instance
+
+    def authenticate_with_app(self, app_id, private_key, installation_id):
+        """
+        Authenticate using a GitHub App.
+        Suitable for integrations in organizational or enterprise environments.
+        """
+        self.app_id = app_id
+        self.private_key = private_key
+        self.installation_id = installation_id
+        integration = GithubIntegration(app_id, private_key)
+        installation_access_token = integration.get_access_token(
+            installation_id).token
+        self.access_token = installation_access_token
+        self.github_instance = ExtendedGithub(
+            login_or_token=installation_access_token)
+        return self.github_instance
+
+    def close_connection(self):
+        """
+        Close the connection to GitHub to free up resources.
+        """
+        if self.github_instance:
+            self.github_instance = None
+
+# Extended Github Class for powerful API calls - e.g. recursive call to get repo structure
+
+
+class ExtendedGithub(Github):
+    def __init__(self, login_or_token):
+        self.access_token = login_or_token
+        super().__init__(login_or_token=login_or_token)
+
+    def get_repo_structure(self, repo_full_name, branch='main') -> dict:
+        """
+        Get the structure of a repository (files and directories) recursively.
+        """
+        owner, repo_name = repo_full_name.split('/')
+        headers = {'Authorization': f'token {self.access_token}'}
+
+        # Function to convert the flat list to a hierarchical structure
+        def list_to_tree(items):
+            """
+            Convert the flat list to a hierarchical structure with full paths.
+            Include size metadata for files and remove 'type' attributes.
+            """
+            tree = {}
+            for item in items:
+                path_parts = item['path'].split('/')
+                current_level = tree
+                for part in path_parts[:-1]:
+                    # Ensure 'children' dictionary exists for directories without explicitly adding 'type'
+                    current_level = current_level.setdefault(
+                        part, {'children': {}})
+                    # Ensure we don't inadvertently create a 'type' key for directories
+                    current_level = current_level.get('children')
+
+                # For the last part of the path, decide if it's a file or directory and add appropriate information
+                if item['type'] == 'blob':  # It's a file
+                    current_level[path_parts[-1]] = {
+                        'path': item['path'],  # Include full path
+                        # Include size if available
+                        'size': item.get('size', 0)
+                    }
+                else:  # It's a directory
+                    # Initialize the directory if not already present, without adding 'type'
+                    if path_parts[-1] not in current_level:
+                        current_level[path_parts[-1]] = {'children': {}}
+            return tree
+
+        # Directly use the Trees API to get the full directory structure of the "main" branch
+        tree_url = f'https://api.github.com/repos/{owner}/{repo_name}/git/trees/{branch}?recursive=1'
+        tree_response = requests.get(tree_url, headers=headers)
+
+        # Check if the request was successful
+        if tree_response.status_code == 200:
+            tree_data = tree_response.json()
+            # Convert the flat list of items to a hierarchical tree structure
+            repo_structure = list_to_tree(tree_data['tree'])
+            return repo_structure
+        else:
+            print(
+                f"Error fetching tree structure: {tree_response.status_code}")
+            print("Details:", tree_response.json())
+
+    def search_code(self, query: str, per_page: int = 30) -> dict:
+        """
+        Search for code on GitHub using the GitHub API.
+
+        Parameters:
+        query (str): The search query.
+        per_page (int): The number of results per page.
+
+        Returns:
+        dict: The search result in dict format.
+        """
+        url = 'https://api.github.com/search/code'
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': f'token {self.access_token}'
+        }
+        params = {
+            'q': query,
+            'per_page': per_page
+        }
+
+        # Retry strategy
+        retry_strategy = Retry(
+            total=3,  # Total number of retries
+            # Retry on these HTTP status codes
+            status_forcelist=[429, 500, 502, 503, 504],
+            # Retry on these HTTP methods
+            allowed_methods=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1  # Exponential backoff factor
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+
+        try:
+            response = http.get(url, headers=headers, params=params)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+            return response.json().get('items', [])
+        except HTTPError as http_err:
+            logger.error(f"HTTP error occurred: {http_err}")
+        except RequestException as req_err:
+            logger.error(f"Request error occurred: {req_err}")
+        except Exception as err:
+            logger.error(f"An error occurred: {err}")
+
+    def search_issues(self, query: str, per_page: int = 30) -> dict:
+        """
+        Search for code on GitHub using the GitHub API.
+
+        Parameters:
+        query (str): The search query.
+        per_page (int): The number of results per page.
+
+        Returns:
+        dict: The search result in dict format.
+        """
+        url = 'https://api.github.com/search/issues'
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': f'token {self.access_token}'
+        }
+        params = {
+            'q': query,
+            'per_page': per_page
+        }
+
+        # Retry strategy
+        retry_strategy = Retry(
+            total=3,  # Total number of retries
+            # Retry on these HTTP status codes
+            status_forcelist=[429, 500, 502, 503, 504],
+            # Retry on these HTTP methods
+            allowed_methods=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1  # Exponential backoff factor
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+
+        try:
+            response = http.get(url, headers=headers, params=params)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+            return response.json().get('items', [])
+        except HTTPError as http_err:
+            logger.error(f"HTTP error occurred: {http_err}")
+        except RequestException as req_err:
+            logger.error(f"Request error occurred: {req_err}")
+        except Exception as err:
+            logger.error(f"An error occurred: {err}")
+
+    def get_issue_comments(self, repo_full_name: str, issue_number: int) -> dict:
+        """
+        Get comments of an issue on GitHub using the GitHub API.
+
+        Parameters:
+        repo_full_name (str): The full name of the repository (e.g., 'octocat/Hello-World').
+        issue_number (int): The issue number.
+
+        Returns:
+        dict: The comments of the issue in dict format.
+        """
+        url = f'https://api.github.com/repos/{repo_full_name}/issues/{issue_number}/comments'
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': f'token {self.access_token}'
+        }
+        # Retry strategy
+        retry_strategy = Retry(
+            total=3,  # Total number of retries
+            # Retry on these HTTP status codes
+            status_forcelist=[429, 500, 502, 503, 504],
+            # Retry on these HTTP methods
+            allowed_methods=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1  # Exponential backoff factor
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+
+        try:
+            response = http.get(url, headers=headers)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+            return response.json()
+        except HTTPError as http_err:
+            logger.error(f"HTTP error occurred: {http_err}")
+        except RequestException as req_err:
+            logger.error(f"Request error occurred: {req_err}")
+        except Exception as err:
+            logger.error(f"An error occurred: {err}")
+
+    def get_pr_files(self, repo_full_name: str, pr_number: int) -> list:
+        """
+        Get the files of a pull request on GitHub using the GitHub API.
+
+        Parameters:
+        repo_full_name (str): The full name of the repository (e.g., 'octocat/Hello-World').
+        pr_number (int): The pull request number.
+
+        Returns:
+        list: The files of the pull request in list format.
+        """
+        url = f'https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}/files'
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': f'token {self.access_token}'
+        }
+
+        # Retry strategy
+        retry_strategy = Retry(
+            total=3,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+
+        try:
+            response = http.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except HTTPError as http_err:
+            logger.error(f"HTTP error occurred: {http_err}")
+        except RequestException as req_err:
+            logger.error(f"Request error occurred: {req_err}")
+        except Exception as err:
+            logger.error(f"An error occurred: {err}")
+        return []
+
+    def get_pr_comments(self, repo_full_name: str, pr_number: int) -> list:
+        """
+        Get the comments of a pull request on GitHub using the GitHub API.
+
+        Parameters:
+        repo_full_name (str): The full name of the repository (e.g., 'octocat/Hello-World').
+        pr_number (int): The pull request number.
+
+        Returns:
+        list: The comments of the pull request in list format.
+        """
+        url = f'https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments'
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': f'token {self.access_token}'
+        }
+
+        # Retry strategy
+        retry_strategy = Retry(
+            total=3,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+
+        try:
+            response = http.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except HTTPError as http_err:
+            logger.error(f"HTTP error occurred: {http_err}")
+        except RequestException as req_err:
+            logger.error(f"Request error occurred: {req_err}")
+        except Exception as err:
+            logger.error(f"An error occurred: {err}")
+        return []
+
+# Example usage:
+if __name__ == "__main__":
+    auth_manager = GitHubAuthManager()
+
+    # For developers using a personal access token or an OAuth token
+    github_instance = auth_manager.authenticate_with_token(
+        "your_personal_access_token_or_oauth_token_here")
+
+    # For organizational or enterprise environments using GitHub App
+    # github_instance = auth_manager.authenticate_with_app("app_id", "private_key", "installation_id")
+
+    # Example action: List all repositories for the authenticated user
+    if github_instance:
+        for repo in github_instance.get_user().get_repos():
+            print(repo.name)
+
+    # Close the connection when done
+    auth_manager.close_connection()
+
+
+================================================
+File: llama_github/llm_integration/initial_load.py
+================================================
+# initial_load.py
+from typing import Optional, Any
+from threading import Lock
+from langchain_openai import ChatOpenAI
+from langchain_mistralai.chat_models import ChatMistralAI
+
+from llama_github.config.config import config
+from llama_github.logger import logger
+
+class LLMManager:
+    """
+    Singleton class for managing Language Models and related components.
+    This class handles initialization and access to various models including LLMs,
+    embedding models, and reranking models.
+    """
+    _instance_lock = Lock()
+    _instance = None
+    llm = None
+    rerank_model = None
+    _initialized = False
+    llm_simple = None
+    tokenizer = None
+    embedding_model = None
+
+    def __new__(cls, *args, **kwargs):
+        """
+        Ensure only one instance of LLMManager is created (Singleton pattern).
+        """
+        if cls._instance is None:  # First check (unlocked)
+            with cls._instance_lock:  # Acquire lock
+                if cls._instance is None:  # Second check (locked)
+                    cls._instance = super(LLMManager, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self,
+                 openai_api_key: Optional[str] = None,
+                 mistral_api_key: Optional[str] = None,
+                 huggingface_token: Optional[str] = None,
+                 open_source_models_hg_dir: Optional[str] = None,
+                 embedding_model: Optional[str] = config.get(
+                     "default_embedding"),
+                 rerank_model: Optional[str] = config.get("default_reranker"),
+                 llm: Any = None,
+                 simple_mode: bool = False):
+        """
+        Initialize the LLMManager with specified models and API keys.
+
+        Args:
+            openai_api_key (Optional[str]): API key for OpenAI.
+            mistral_api_key (Optional[str]): API key for Mistral AI.
+            huggingface_token (Optional[str]): Token for Hugging Face.
+            open_source_models_hg_dir (Optional[str]): Directory for open-source models.
+            embedding_model (Optional[str]): Name or path of the embedding model.
+            rerank_model (Optional[str]): Name or path of the reranking model.
+            llm (Any): Custom LLM instance if provided.
+            simple_mode (bool): If True, skip initialization of embedding and reranking models.
+        """
+        with self._instance_lock:   # Prevent re-initialization
+            if self._initialized:
+                return
+            self._initialized = True
+
+        self.simple_mode = simple_mode
+
+        # Initialize LLM based on provided API keys or custom LLM
+        if llm is not None:
+            self.llm = llm
+            self.model_type = "Custom_langchain_llm"
+        elif mistral_api_key is not None and mistral_api_key != "" and self.llm is None:
+            logger.info("Initializing Mistral API...")
+            self.llm = ChatMistralAI(mistral_api_key=mistral_api_key, model="mistral-large-2411")
+            self.llm_simple = ChatMistralAI(
+                mistral_api_key=mistral_api_key, 
+                model="open-mistral-nemo", 
+                temperature=0.2
+            )
+            self.model_type = "OpenAI"
+        elif openai_api_key is not None and openai_api_key != "" and self.llm is None:
+            logger.info("Initializing OpenAI API...")
+            self.llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4-turbo")
+            self.llm_simple = ChatOpenAI(
+                api_key=openai_api_key, model="gpt-4o-mini")
+            self.model_type = "OpenAI"
+        # Initialize for Open Source Models
+        elif open_source_models_hg_dir is not None and open_source_models_hg_dir != "" and self.llm is None:
+            logger.info(f"Initializing {open_source_models_hg_dir}...")
+            # load huggingface models
+            self.model_type = "Hubgingface"
+        elif self.llm is None:
+            # default model is phi3_mini_128k
+            self.model_type = "Hubgingface"
+            
+        if not self.simple_mode:
+            import sys
+            import platform
+            import subprocess
+
+            def get_device():
+                if sys.platform.startswith('darwin'):  # macOS
+                    # Check for Apple Silicon (M1/M2)
+                    if platform.machine() == 'arm64':
+                        return 'mps'
+                elif sys.platform.startswith('linux') or sys.platform.startswith('win'):
+                    # Check for NVIDIA GPU
+                    try:
+                        subprocess.run(['nvidia-smi'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        return 'cuda'
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        pass
+                
+                # Default to CPU
+                return 'cpu'
+
+            # Usage
+            self.device = get_device()
+
+            from transformers import AutoModel
+            from transformers import AutoModelForSequenceClassification
+            from transformers import AutoTokenizer
+            # Initialize embedding model
+            if self.tokenizer is None:
+                logger.info(f"Initializing {embedding_model}...")
+                self.tokenizer = AutoTokenizer.from_pretrained(embedding_model)
+                self.embedding_model = AutoModel.from_pretrained(
+                    embedding_model, trust_remote_code=True).to(self.device)
+
+            # Initialize reranking model
+            if self.rerank_model is None:
+                logger.info(f"Initializing {rerank_model}...")
+                self.rerank_model = AutoModelForSequenceClassification.from_pretrained(
+                    rerank_model, num_labels=1, trust_remote_code=True
+                ).to(self.device)
+        else:
+            logger.info("Simple mode enabled. Skipping embedding and rerank model initialization.")
+
+    def get_llm(self):
+        """
+        Get the main Language Model.
+
+        Returns:
+            The initialized Language Model.
+        """
+        return self.llm
+
+    def get_llm_simple(self):
+        """
+        Get the simplified Language Model.
+
+        Returns:
+            The initialized simplified Language Model.
+        """
+        return self.llm_simple
+
+    def get_tokenizer(self):
+        """
+        Get the tokenizer for the embedding model.
+
+        Returns:
+            The initialized tokenizer.
+        """
+        return self.tokenizer
+
+    def get_rerank_model(self):
+        """
+        Get the reranking model.
+
+        Returns:
+            The initialized reranking model.
+        """
+        return self.rerank_model
+
+    def get_embedding_model(self):
+        """
+        Get the embedding model.
+
+        Returns:
+            The initialized embedding model.
+        """
+        return self.embedding_model
+
+
+================================================
+File: llama_github/llm_integration/llm_handler.py
+================================================
+# llm_handler.py
+# to do list
+# 1. add streaming output for invoke.
+
+from llama_github.llm_integration.initial_load import LLMManager
+from langchain_core.prompts import ChatPromptTemplate, ChatMessagePromptTemplate, MessagesPlaceholder
+from langchain_core.output_parsers import StrOutputParser
+from llama_github.config.config import config
+from llama_github.logger import logger
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel
+from typing import Optional
+from langchain_openai import output_parsers
+
+class LLMHandler:
+    def __init__(self, llm_manager: Optional[LLMManager] = None):
+        """
+        Initializes the LLMHandler class which is responsible for handling the interaction
+        with a language model (LLM) using the LangChain framework.
+
+        Attributes:
+            llm_manager (LLMManager): Manages interactions with the language model.
+        """
+        if llm_manager is not None:
+            self.llm_manager = llm_manager
+        else:
+            self.llm_manager = LLMManager()
+
+    async def ainvoke(self, human_question: str, chat_history: Optional[list[str]] = None, context: Optional[list[str]] = None, output_structure: Optional[BaseModel] = None, prompt: str = config.get("general_prompt"), simple_llm=False) -> str:
+        """
+        Asynchronously invokes the language model with a given question, chat history, and context,
+        and returns the model's response.
+
+        Parameters:
+            human_question (str): The question or input from the human user.
+            chat_history (list[str]): A list of strings representing the chat history, where each
+                                      string is a message. This parameter is optional.
+            context (list[str]): A list of strings representing additional context for the model.
+                                 This parameter is optional.
+            output_structure: A langchain_core.pydantic_v1.BaseModel object to control desired 
+                              structure of the output from the language model.
+                              This parameter is optional and allows for more detailed control over
+                              the model's responses.
+            prompt (str): A template for the prompt to be used with the language model. Defaults
+                          to a general prompt defined in the configuration.
+
+        Returns:
+            str: The response from the language model.
+        """
+        try:
+            if simple_llm and self.llm_manager.get_llm_simple() is not None:
+                llm = self.llm_manager.get_llm_simple()
+            else:
+                llm = self.llm_manager.get_llm()
+            if self.llm_manager.model_type == "OpenAI":
+                # Create a prompt template with placeholders for dynamic content.
+                prompt_template = ChatMessagePromptTemplate.from_template(
+                    role="system", template=prompt)
+                chat_prompt = ChatPromptTemplate.from_messages([
+                    prompt_template,
+                    MessagesPlaceholder(
+                        variable_name="history_messages", optional=True),
+                    MessagesPlaceholder(variable_name="human_message"),
+                    MessagesPlaceholder(
+                        variable_name="context_messages", optional=True)
+                ])
+
+                # Convert chat_history and context from [str] to their respective message types.
+                chat_history_messages = self._compose_context_messages(
+                    chat_history)
+                context_messages = self._compose_chat_history_messages(context)
+                human_question_message = HumanMessage(content=human_question)
+
+                prompt_params = {
+                    "history_messages": chat_history_messages,
+                    "human_message": [human_question_message],
+                    "context_messages": context_messages
+                }
+
+                # Format the prompt with the provided parameters.
+                formatted_prompt = chat_prompt.format_prompt(**prompt_params)
+                # Determine the processing chain based on the presence of an output structure.
+                if output_structure is not None:
+                    chain = llm.with_structured_output(output_structure)
+                else:
+                    chain = llm
+
+                # Invoke the chain and return the model's response.
+                try:
+                    response = await chain.ainvoke(formatted_prompt.to_messages())
+                except Exception as e:
+                    logger.exception(
+                        f"Call {'simple ' if simple_llm else ''}llm with #{human_question}# generated an exception:{e}")
+                    if output_structure is not None:
+                        response = await chain.ainvoke(formatted_prompt.to_messages())
+                return response
+        except Exception as e:
+            logger.exception(
+                f"Call llm with #{human_question}# generated an exception:{e}")
+            return "An error occurred during processing."
+
+    def _compose_chat_history_messages(self, chat_history: list[str]) -> list:
+        """
+        Converts chat history from a list of strings to a list of alternating HumanMessage
+        and AIMessage objects, starting with HumanMessage.
+
+        Parameters:
+            chat_history (list[str]): The chat history as a list of strings.
+
+        Returns:
+            list: A list of alternating HumanMessage and AIMessage objects.
+        """
+        messages = []
+        for i, message in enumerate(chat_history or []):
+            message_class = HumanMessage if i % 2 == 0 else AIMessage
+            messages.append(message_class(content=message))
+        return messages
+
+    def _compose_context_messages(self, context: list[str]) -> list:
+        """
+        Converts context from a list of strings to a list of SystemMessage objects.
+
+        Parameters:
+            context (list[str]): The context as a list of strings.
+
+        Returns:
+            list: A list of SystemMessage objects.
+        """
+        return [SystemMessage(content=message) for message in context or []]
+
+
+================================================
+File: llama_github/rag_processing/rag_processor.py
+================================================
+# rag_processor.py
+from llama_github.config.config import config
+from llama_github.data_retrieval.github_api import GitHubAPIHandler
+from llama_github.data_retrieval.github_entities import Repository
+from llama_github.llm_integration.llm_handler import LLMManager, LLMHandler
+from llama_github.logger import logger
+from langchain_core.pydantic_v1 import BaseModel, Field
+from typing import List, Optional, Dict
+from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
+import json
+import math
+from numpy.linalg import norm
+import numpy as np
+import asyncio
+
+
+class RAGProcessor:
+    def __init__(self, github_api_handler: GitHubAPIHandler, llm_manager: LLMManager = None, llm_handler: LLMHandler = None):
+        if llm_manager:
+            self.llm_manager = llm_manager
+        else:
+            self.llm_manager = LLMManager()
+
+        if llm_handler:
+            self.llm_handler = llm_handler
+        else:
+            self.llm_handler = LLMHandler(llm_manager=self.llm_manager)
+
+        self.github_api_handler = github_api_handler
+
+    class _LLMFirstGenenralAnswer(BaseModel):
+        question: str = Field(
+            ...,
+            description="The abstraction of user's question, only one sentence no more than 20 words.",
+            example="How to create a NumPy array in Python?"
+        )
+        answer: str = Field(
+            ...,
+            description="The answer to the user's question, better with sample code.",
+            example="You can use the `numpy.array` function to create a NumPy array in Python. The sample code is as follows:\n\n```python\nimport numpy as np\n\narray = np.array([1, 2, 3])\nprint(array)\n```"
+        )
+        code_search_logic: str = Field(
+            ...,
+            description="Simple logic analyze on how to search for Github code related to the user's question without detail search criteria nor keywords.",
+        )
+        issue_search_logic: str = Field(
+            ...,
+            description="Simple logic analyze on how to search for Github issues related to the user's question without detail search criteria nor keywords.",
+        )
+
+    async def analyze_question(self, query: str) -> List[str]:
+        """
+        analyze user's question and generate strategy for code search and issue search
+
+        Args:
+            query (str): user's initial question.
+
+        Returns:
+            str: the answer of question.
+        """
+        try:
+            logger.debug(
+                f"Analyzing question and generating strategy")
+            prompt = config.get("always_answer_prompt")
+            response = await self.llm_handler.ainvoke(human_question=query, prompt=prompt, output_structure=self._LLMFirstGenenralAnswer)
+            return [response.question, response.answer, response.code_search_logic, response.issue_search_logic]
+        except Exception as e:
+            logger.error(f"Error in analyzing question: {e}")
+            return [response.question, ""]
+
+    class _GitHubCodeSearchCriteria(BaseModel):
+        search_criteria: List[str] = Field(
+            ...,
+            description="A list of search criteria strings for GitHub code search, each following GitHub's search syntax.",
+            example=["NumPy Array language:python",
+                     "log4j LoggingUtil language:java"],
+            min_items=1,
+            max_items=2
+        )
+
+    async def get_code_search_criteria(self, query: str, draft_answer: Optional[str] = None) -> List[str]:
+        """
+        generate Github search criteria based on user's question
+
+        Args:
+            query (str): user's initial question.
+
+        Returns:
+            str[]: the search criteria for Github code search.
+        """
+        try:
+            logger.debug(
+                f"Generating code search criteria for question: {query}")
+            prompt = config.get("code_search_criteria_prompt")
+            response = await self.llm_handler.ainvoke(human_question=query, prompt=prompt, context=[draft_answer] if draft_answer is not None else None, output_structure=self._GitHubCodeSearchCriteria)
+            logger.debug(
+                f"For {query}, the search_criterias for code search is: {response.search_criteria}")
+            return response.search_criteria
+        except Exception as e:
+            logger.error(f"Error in get_code_search_criteria: {e}")
+            return []
+
+    class _GitHubRepoSearchCriteria(BaseModel):
+        necessity_score: int = Field(
+            ...,
+            description="In case there is already Github Code search and issue search for question related context retrieve. How necessity do you think seperate repo search in Github will be required. 0-59:no necessity, 60-79:medium necessity, 80-100:high necessity",
+            example=65
+        )
+        search_criteria: List[str] = Field(
+            ...,
+            description="A list of search criteria strings for GitHub repository search, each following GitHub's search syntax. The sorting of the list should be based on the necessity of the search criteria.",
+            example=["NumPy Array language:python",
+                     "spring-boot log4j language:java"],
+            min_items=0,
+            max_items=2
+        )
+
+    async def get_repo_search_criteria(self, query: str, draft_answer: Optional[str] = None) -> List[str]:
+        """
+        generate Github search criteria based on user's question
+
+        Args:
+            query (str): user's initial question.
+
+        Returns:
+            str[]: the search criteria for Github code search.
+        """
+        search_criteria = []
+        try:
+            logger.debug(
+                f"Generating repo search criteria for question: {query}")
+            prompt = config.get("repo_search_criteria_prompt")
+            response = await self.llm_handler.ainvoke(human_question=query, prompt=prompt, context=[draft_answer] if draft_answer is not None else None, output_structure=self._GitHubRepoSearchCriteria)
+            if response.necessity_score >= 80:
+                search_criteria = response.search_criteria
+            elif response.necessity_score >= 60 and len(response.search_criteria) >= 1:
+                search_criteria = response.search_criteria[:1]
+            logger.debug(
+                f"For {query}, the search_criterias for repo search is: {search_criteria} and repo search necessity score is {response.necessity_score}")
+        except Exception as e:
+            logger.error(f"Error in get_repo_search_criteria: {e}")
+            return search_criteria
+        return search_criteria
+
+    def get_repo_simple_structure(self, repo: Repository) -> str:
+        """
+        get a simple structure of a repository, only contains first 3 levels of repo folder/file structure.
+
+        Args:
+            repo (Repository): the repository object.
+
+        Returns:
+            json: the simple structure of the repository.
+        """
+        full_structure = repo.get_structure()
+
+        if not full_structure:
+            return json.dumps({})
+
+        def simplify_tree(tree, level=1):
+            """
+            Simplify the tree structure to keep only three levels deep.
+            """
+            if level > 3:
+                return '...'
+
+            simplified_tree = {}
+            for key, value in tree.items():
+                if 'children' in value:
+                    simplified_tree[key] = {
+                        'children': simplify_tree(value['children'], level + 1)
+                    }
+                else:
+                    simplified_tree[key] = value
+            return simplified_tree
+
+        simplified_structure = simplify_tree(full_structure)
+        return json.dumps(simplified_structure, indent=4)
+
+    class _GitHubIssueSearchCriteria(BaseModel):
+        search_criteria: List[str] = Field(
+            ...,
+            description="A list of search criteria strings for GitHub issue search, each following GitHub's search syntax.",
+            example=["is:open label:bug Numpy Array",
+                     "is:closed label:documentation langchain ollama"],
+            min_items=1,
+            max_items=2
+        )
+
+    async def get_issue_search_criteria(self, query: str, draft_answer: Optional[str] = None) -> List[str]:
+        """
+        generate Github search criteria based on user's question
+
+        Args:
+            query (str): user's initial question.
+
+        Returns:
+            str[]: the search criteria for Github issue search.
+        """
+        try:
+            logger.debug(
+                f"Generating issue search criteria for question: {query}")
+            prompt = config.get("issue_search_criteria_prompt")
+            response = await self.llm_handler.ainvoke(human_question=query, prompt=prompt, context=[draft_answer] if draft_answer is not None else None, output_structure=self._GitHubIssueSearchCriteria)
+            logger.debug(
+                f"For {query}, the search_criterias for issue search is: {response.search_criteria}")
+            return response.search_criteria
+        except Exception as e:
+            logger.error(f"Error in get_issue_search_criteria: {e}")
+            return []
+
+    def _arrange_code_search_result(self, code_search_result: List[Dict]) -> List[Dict[str, str]]:
+        """
+        Arrange the result of Code search with metadata.
+
+        Args:
+            _arrange_code_search_result (dict): The result of Code search.
+
+        Returns:
+            List[Dict[str, str]]: The arranged result of Code search with metadata.
+        """
+        arranged_results = []
+
+        for result in code_search_result:
+            content = result['content']
+            url = result.get('url', '')
+
+            # Split content into chunks
+            chunks = self._split_content_into_chunks(
+                content, language=result['language'] if 'language' in result else None)
+
+            for chunk in chunks:
+                repository_full_name = result.get(
+                    'repository_full_name', 'None')
+                description = result.get('description', 'None')
+                stargazers_count = result.get('stargazers_count', 'None')
+                updated_at = result.get('updated_at', 'None')
+                path = result.get('path', 'None')
+                language = result.get('language', 'None')
+
+                if updated_at != 'None':
+                    updated_at = updated_at.strftime('%Y-%m-%d %H:%M:%S %Z')
+
+                chunk_text = (
+                    f"Sample code from repository: {repository_full_name}\n"
+                    f"repository description: {description}\n"
+                    f"repository stars: {stargazers_count}\n"
+                    f"repository last updated: {updated_at}\n"
+                    f"code path in repository: {path}\n"
+                    f"programming language is: {language}\n\n"
+                    f"{chunk}"
+                )
+                arranged_results.append({'context': chunk_text, 'url': url})
+
+        return arranged_results
+
+    def _split_content_into_chunks(self, content: str, language: Optional[str] = None, max_tokens: Optional[int] = config.get('chunk_size')) -> List[str]:
+        """
+        Split the content into chunks of maximum token length using LangChain's RecursiveCharacterTextSplitter.
+
+        Args:
+            content (str): The content to be split.
+            language (Optional[str]): The programming language of the code. Defaults to None.
+
+        Returns:
+            list: A list of content chunks.
+        """
+        chunk_overlap = math.ceil(max_tokens * 0.15 / 100) * 100
+
+        if language is None or language.lower() not in [e.value for e in Language] or language.lower() in ['markdown', 'html', 'c', 'perl']:
+            splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+                separators=[
+                    "\n\n",
+                    "\n",
+                    "\r\n",
+                ],
+                chunk_size=max_tokens,
+                chunk_overlap=chunk_overlap,
+                tokenizer=self.llm_manager.tokenizer
+            )
+        else:
+            max_tokens = max_tokens * 5
+            chunk_overlap = chunk_overlap * 5
+            language_enum = Language[language.upper()]
+            splitter = RecursiveCharacterTextSplitter.from_language(
+                language=language_enum,
+                chunk_size=max_tokens,
+                chunk_overlap=chunk_overlap,
+            )
+
+        chunks = splitter.split_text(content)
+        return chunks
+
+    def _arrange_issue_search_result(self, issue_search_result: dict) -> List[Dict[str, str]]:
+        """
+        Arrange the result of Issue search with metadata.
+
+        Args:
+            _arrange_issue_search_result (dict): The result of Issue search.
+
+        Returns:
+            List[Dict[str, str]]: The arranged result of Issue search with metadata.
+        """
+        arranged_results = []
+
+        for result in issue_search_result:
+            content = result['issue_content']
+            url = result.get('url', '')
+
+            # Split content into chunks
+            chunks = self._split_content_into_chunks(
+                content, max_tokens=config.get('issue_chunk_size'))
+
+            for chunk in chunks:
+                arranged_results.append({'context': chunk, 'url': url})
+
+        return arranged_results
+
+    def _arrange_repo_search_result(self, repo_search_result: dict) -> List[Dict[str, str]]:
+        """
+        Arrange the result of Repo search with metadata.
+
+        Args:
+            _arrange_repo_search_result (dict): The result of Repo search.
+
+        Returns:
+            List[Dict[str, str]]: The arranged result of Repo search with metadata.
+        """
+        arranged_results = []
+
+        for result in repo_search_result:
+            content = result['content']
+            url = result.get('url', '')
+
+            # Split content into chunks
+            chunks = self._split_content_into_chunks(
+                content, max_tokens=config.get('repo_chunk_size'))
+
+            for chunk in chunks:
+                arranged_results.append({'context': chunk, 'url': url})
+
+        return arranged_results
+
+    def _arrange_google_search_result(self, google_search_result: dict) -> List[Dict[str, str]]:
+        """
+        Arrange the result of Google search with metadata.
+
+        Args:
+            google_search_result (dict): The result of Google search.
+
+        Returns:
+            List[Dict[str, str]]: The arranged result of Google search with metadata.
+        """
+        arranged_results = []
+
+        for result in google_search_result:
+            content = result['content']
+            url = result.get('url', '')  # Extract the URL if available
+
+            # Split content into chunks
+            chunks = self._split_content_into_chunks(content, max_tokens=config.get('google_chunk_size'))
+
+            for chunk in chunks:
+                arranged_results.append({'context': chunk, 'url': url})
+
+        return arranged_results
+
+    def arrange_context(self, code_search_result: Optional[dict] = None, issue_search_result: Optional[dict] = None,
+                        repo_search_result: Optional[dict] = None, google_search_result: Optional[dict] = None) -> List[
+        Dict[str, str]]:
+        """
+        Arrange the context before RAG with metadata.
+
+        Args:
+            code_search_result (dict, optional): The result of code search. Defaults to None.
+            issue_search_result (dict, optional): The result of issue search. Defaults to None.
+            repo_search_result (dict, optional): The result of repo search. Defaults to None.
+            google_search_result (dict, optional): The result of Google search. Defaults to None.
+
+        Returns:
+            List[Dict[str, str]]: The arranged context with metadata.
+        """
+        context = []
+        if code_search_result:
+            context.extend(self._arrange_code_search_result(code_search_result))
+        if issue_search_result:
+            context.extend(self._arrange_issue_search_result(issue_search_result))
+        if repo_search_result:
+            context.extend(self._arrange_repo_search_result(repo_search_result))
+        if google_search_result:
+            context.extend(self._arrange_google_search_result(google_search_result))
+        return context
+
+    async def retrieve_topn_contexts(self, context_list: List[Dict[str, str]], query: str, answer: Optional[str] = None,
+                                     top_n: Optional[int] = 5) -> List[Dict[str, str]]:
+        """
+        Retrieve top n context dictionaries from the context list.
+
+        Args:
+            context_list (List[Dict[str, str]]): List of context dictionaries to retrieve top n from.
+                Each dictionary should have at least 'context' and 'url' keys.
+            query (str): The query string.
+            answer (Optional[str]): The answer string (optional).
+            top_n (Optional[int]): Number of top context strings to retrieve (default: 5).
+
+        Returns:
+            List[Dict[str, str]]: A list of top n context dictionaries.
+        """
+        top_contexts = []
+        try:
+            reranker = self.llm_manager.get_rerank_model()
+
+            # Extract contexts from the dictionaries
+            contexts = [context_item['context'] for context_item in context_list]
+
+            # Create sentence pairs for reranking
+            sentence_pairs = [[query, doc] for doc in contexts]
+            rerank_scores = reranker.compute_score(sentence_pairs)
+
+            # Zip scores with context dictionaries
+            scored_contexts = list(zip(rerank_scores, context_list))
+            sorted_scored_contexts = sorted(
+                scored_contexts, key=lambda x: x[0], reverse=True)
+
+            # Extract top 3*top_n context dictionaries after rerank
+            selected_contexts = [context for score, context in
+                                 sorted_scored_contexts[:min(top_n * 3, len(sorted_scored_contexts))]]
+
+            # If there are too few contexts, skip embedding comparison step
+            if len(selected_contexts) < top_n * 2:
+                return selected_contexts[:min(top_n, len(selected_contexts))]
+
+            # Calculate embeddings to select top 2*top_n
+            logger.debug("Embedding start...")
+            embedding_model = self.llm_manager.get_embedding_model()
+            query_embedding = embedding_model.encode(query + "\n" + answer if answer is not None else "")
+            context_embeddings = [embedding_model.encode(context_item['context']) for context_item in selected_contexts]
+
+            # Calculate cosine similarities
+            cos_similarities = [
+                (query_embedding @ context_embedding.T) / (norm(query_embedding) * norm(context_embedding))
+                for context_embedding in context_embeddings]
+
+            # Get top indices based on cosine similarities
+            top_indices = np.argsort(cos_similarities)[-(top_n * 2):][::-1]
+            top_contexts = [selected_contexts[i] for i in top_indices]
+            top_cos_similarities = [cos_similarities[i] for i in top_indices]
+            top_rerank_scores = [rerank_scores[contexts.index(context_item['context'])] for context_item in
+                                 top_contexts]
+
+            # Use simple LLM to calculate context relevance scores
+            llm_scores = await asyncio.gather(
+                *[self.get_context_relevance_score(query, context_item['context']) for context_item in top_contexts])
+            logger.debug(f"Simple LLM scores: {llm_scores}")
+
+            # Combine scores for final ranking
+            combined_scores = [llm_score * cos_sim * rerank_score
+                               for llm_score, cos_sim, rerank_score in
+                               zip(llm_scores, top_cos_similarities, top_rerank_scores)]
+
+            combined_context_scores = list(zip(top_contexts, combined_scores))
+            sorted_combined_context_scores = sorted(
+                combined_context_scores, key=lambda x: x[1], reverse=True)
+            logger.debug(f"Combined sorted context scores: {sorted_combined_context_scores}")
+
+            # Extract top n context dictionaries
+            top_contexts = [context for context, _ in sorted_combined_context_scores[:top_n]]
+            logger.debug(f"Final top contexts: {top_contexts}")
+
+        except Exception as e:
+            logger.error(f"Error retrieving top n context: {e}")
+
+        return top_contexts
+
+    class _ContextRelevanceScore(BaseModel):
+        score: int = Field(
+            ...,
+            description="This is a Context Relevance Score, ranging from 0 to 100, indicates how well a given coding-related context supports answering a specific question, with higher scores signifying greater relevance."
+        )
+
+    async def get_context_relevance_score(self, query: str, context: str) -> int:
+        """
+        generate context relevance score based on user's question and provided context
+
+        Args:
+            query (str): user's initial question.
+            context (str): context fetched from Github
+
+        Returns:
+            int: context relevance score, from 0-100.
+        """
+        try:
+            prompt = config.get("scoring_context_prompt")
+            response = await self.llm_handler.ainvoke(human_question=query, prompt=prompt, context=[context], output_structure=self._ContextRelevanceScore, simple_llm=True)
+            logger.debug(
+                f"For {context[:20]}, the context relevance score is: {response.score}")
+            return response.score
+        except Exception as e:
+            logger.error(f"Error in get_context_relevance_score: {e}")
+            return -1
+
+
+================================================
+File: .github/gitleaks.toml
+================================================
+title = "gitleaks config"
+
+[[rules]]
+description = "OpenAI API Key"
+regex = '''sk-[a-zA-Z0-9]{32}'''
+tags = ["apikey"]
+
+[[rules]]
+description = "Hugging Face Token"
+regex = '''hf_[a-zA-Z0-9]{40}'''
+tags = ["apikey"]
+
+[[rules]]
+description = "GitHub Token"
+regex = '''ghp_[a-zA-Z0-9]{36}'''
+tags = ["apikey"]
+
+[[rules]]
+description = "Jina AI API Key"
+regex = '''jina_[a-zA-Z0-9]{32}[a-zA-Z0-9]{16}'''
+tags = ["apikey"]
+
+
+================================================
+File: .github/workflows/publish.yml
+================================================
+name: Publish Python Package
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools wheel
+    - name: Build package
+      run: python setup.py sdist bdist_wheel
+    - name: List distribution files
+      run: ls -l dist/
+    - name: Publish package
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist/
+
+================================================
+File: .github/workflows/secret-scan.yml
+================================================
+name: Secret Scan
+
+on: [push, pull_request]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSL https://github.com/zricethezav/gitleaks/releases/download/v8.2.0/gitleaks_8.2.0_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks
+
+      - name: Run Gitleaks
+        run: |
+          gitleaks detect --source . --config .github/gitleaks.toml
+
+
