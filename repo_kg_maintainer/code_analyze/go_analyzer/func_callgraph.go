@@ -18,9 +18,10 @@ type Relationship struct {
 
 // StructMethod keeps track of methods belonging to structs
 type StructMethod struct {
-	StructName  string
-	MethodName  string
-	PackageName string
+	StructName   string
+	MethodName   string
+	PackageName  string
+	ReceiverName string
 }
 
 // TypeInfo stores information about a type
@@ -285,11 +286,20 @@ func (a *Analyzer) processFuncDeclaration(funcDecl *ast.FuncDecl, packageName st
 	if funcDecl.Recv != nil {
 		for _, field := range funcDecl.Recv.List {
 			typeInfo := a.resolveTypeFromExpr(field.Type, packageName)
-			for _, name := range field.Names {
-				a.Variables[name.Name] = VarInfo{
+			// Store method with receiver name
+			if len(field.Names) > 0 {
+				receiverName := field.Names[0].Name
+				a.Methods[funcDecl.Name.Name] = StructMethod{
+					StructName:   typeInfo.TypeName,
+					MethodName:   funcDecl.Name.Name,
+					PackageName:  packageName,
+					ReceiverName: receiverName,
+				}
+				// Store receiver variable type
+				a.Variables[receiverName] = VarInfo{
 					Type:     typeInfo,
 					Scope:    functionScope,
-					Position: name.Pos(),
+					Position: field.Pos(),
 				}
 			}
 		}
@@ -370,15 +380,36 @@ func (a *Analyzer) resolveVariableType(ident *ast.Ident) string {
 
 // Helper function to handle existing variable resolution logic
 func (a *Analyzer) resolveExistingVariable(ident *ast.Ident) string {
-	// Check global variables
-	if varInfo, ok := a.GlobalVars[ident.Name]; ok {
-		if varInfo.Type.PackageName != "" {
-			return fmt.Sprintf("%s.%s", varInfo.Type.PackageName, varInfo.Type.TypeName)
+	// First check if this is a receiver variable in a method
+	if a.CurrentFunction != "" {
+		parts := strings.Split(a.CurrentFunction, ".")
+		if len(parts) >= 2 {
+			// We're in a method, check if this is the receiver variable
+			structName := parts[len(parts)-2] // Get the struct name from current function
+			if method, ok := a.Methods[parts[len(parts)-1]]; ok {
+				// Verify this is a method of the current struct
+				if method.StructName == structName && method.PackageName == a.CurrentPackage {
+					// If this is the receiver variable
+					if ident.Name == method.ReceiverName {
+						return fmt.Sprintf("%s.%s", method.PackageName, method.StructName)
+					}
+				}
+			}
 		}
 	}
 
-	// Check local variables
+	// Then check other variables in current scope
 	if varInfo, ok := a.Variables[ident.Name]; ok {
+		// Check if the variable is in the current scope
+		if varInfo.Scope == a.CurrentScope {
+			if varInfo.Type.PackageName != "" {
+				return fmt.Sprintf("%s.%s", varInfo.Type.PackageName, varInfo.Type.TypeName)
+			}
+		}
+	}
+
+	// Check global variables
+	if varInfo, ok := a.GlobalVars[ident.Name]; ok {
 		if varInfo.Type.PackageName != "" {
 			return fmt.Sprintf("%s.%s", varInfo.Type.PackageName, varInfo.Type.TypeName)
 		}
