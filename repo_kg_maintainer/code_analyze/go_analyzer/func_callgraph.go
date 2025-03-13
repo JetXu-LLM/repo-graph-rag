@@ -219,7 +219,6 @@ func (a *Analyzer) processTypeDeclaration(typeSpec *ast.TypeSpec, packageName st
 
 func (a *Analyzer) processStructType(typeSpec *ast.TypeSpec, structType *ast.StructType, packageName string) {
 	typeName := typeSpec.Name.Name
-	fmt.Printf("DEBUG: Processing struct type %s in package %s\n", typeName, packageName)
 
 	// Initialize field map for this struct if not exists
 	if _, ok := a.StructFields[typeName]; !ok {
@@ -228,15 +227,12 @@ func (a *Analyzer) processStructType(typeSpec *ast.TypeSpec, structType *ast.Str
 
 	for _, field := range structType.Fields.List {
 		if len(field.Names) == 0 {
-			fmt.Printf("DEBUG: Found embedded field in %s\n", typeName)
 			// Handle embedded fields
 			continue
 		}
 
 		fieldType := a.resolveTypeFromExpr(field.Type, packageName)
 		for _, name := range field.Names {
-			fmt.Printf("DEBUG: Adding field %s with type %+v to struct %s\n",
-				name.Name, fieldType, typeName)
 			a.StructFields[typeName][name.Name] = fieldType
 
 			// If this is an imported type, add it to ImportedTypes
@@ -347,11 +343,8 @@ func (a *Analyzer) processNode(node ast.Node, packageName string) {
 }
 
 func (a *Analyzer) resolveVariableType(ident *ast.Ident) string {
-	fmt.Printf("DEBUG: Resolving type for variable %s in function %s\n", ident.Name, a.CurrentFunction)
-
 	// First try existing resolution methods
 	if varType := a.resolveExistingVariable(ident); varType != "" {
-		fmt.Printf("DEBUG: Found existing variable type: %s\n", varType)
 		return varType
 	}
 
@@ -360,12 +353,8 @@ func (a *Analyzer) resolveVariableType(ident *ast.Ident) string {
 		parts := strings.Split(a.CurrentFunction, ".")
 		if len(parts) >= 2 {
 			structName := parts[len(parts)-2] // Get the struct name from current function
-			fmt.Printf("DEBUG: Checking fields of struct %s\n", structName)
-
 			if fields, ok := a.StructFields[structName]; ok {
-				fmt.Printf("DEBUG: Found struct fields: %+v\n", fields)
 				if fieldType, ok := fields[ident.Name]; ok {
-					fmt.Printf("DEBUG: Found field type for %s: %+v\n", ident.Name, fieldType)
 					if fieldType.PackageName != "" {
 						return fmt.Sprintf("%s.%s", fieldType.PackageName, fieldType.TypeName)
 					}
@@ -374,7 +363,6 @@ func (a *Analyzer) resolveVariableType(ident *ast.Ident) string {
 		}
 	}
 
-	fmt.Printf("DEBUG: Could not resolve type for %s\n", ident.Name)
 	return ""
 }
 
@@ -567,15 +555,11 @@ func (a *Analyzer) analyzeNode(n ast.Node) {
 func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 	switch x := expr.(type) {
 	case *ast.SelectorExpr:
-		fmt.Printf("DEBUG: Processing selector expression\n")
-
 		// Handle nested selector expressions (e.g., v.StartTime.Equal)
 		switch inner := x.X.(type) {
 		case *ast.SelectorExpr:
-			fmt.Printf("DEBUG: Found nested selector: outer=%s, inner=%v\n", x.Sel.Name, inner)
 			// Resolve the type of the inner selector first
 			innerType := a.resolveNestedSelector(inner)
-			fmt.Printf("DEBUG: Resolved inner selector type: %s\n", innerType)
 			if innerType != "" {
 				parts := strings.Split(innerType, ".")
 				if len(parts) == 2 {
@@ -584,27 +568,20 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 			}
 
 		case *ast.Ident:
-			fmt.Printf("DEBUG: Processing simple selector %s.%s\n", inner.Name, x.Sel.Name)
 			// Check if it's an imported package
 			if _, ok := a.Imports[inner.Name]; ok {
-				fmt.Printf("DEBUG: Found as import: %s.%s\n", inner.Name, x.Sel.Name)
 				return fmt.Sprintf("%s.%s", inner.Name, x.Sel.Name)
 			}
 
 			// Try to resolve the type of the variable
 			varType := a.resolveVariableType(inner)
-			fmt.Printf("DEBUG: Resolved variable type for %s: %s\n", inner.Name, varType)
-
 			if varType != "" {
-				// Split package and type
 				parts := strings.Split(varType, ".")
 				if len(parts) == 2 {
 					pkgName, typeName := parts[0], parts[1]
-					fmt.Printf("DEBUG: Found package %s and type %s\n", pkgName, typeName)
 
 					// Check if this type has the method
 					if method, ok := a.Methods[x.Sel.Name]; ok {
-						fmt.Printf("DEBUG: Found method %s for type %s\n", x.Sel.Name, method.StructName)
 						if method.StructName == typeName {
 							return fmt.Sprintf("%s.%s.%s", pkgName, typeName, x.Sel.Name)
 						}
@@ -612,7 +589,6 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 
 					// Check embedded types
 					if embedded, ok := a.EmbeddedTypes[typeName]; ok {
-						fmt.Printf("DEBUG: Checking embedded types for %s: %+v\n", typeName, embedded)
 						for _, embType := range embedded {
 							if method, ok := a.Methods[x.Sel.Name]; ok {
 								if method.StructName == embType.TypeName {
@@ -629,14 +605,11 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 	return ""
 }
 
-// Update resolveNestedSelector to use the package name
+// resolveNestedSelector resolves nested selector expressions
 func (a *Analyzer) resolveNestedSelector(sel *ast.SelectorExpr) string {
 	if ident, ok := sel.X.(*ast.Ident); ok {
-		fmt.Printf("DEBUG: Resolving nested selector base=%s field=%s\n", ident.Name, sel.Sel.Name)
-
 		// First resolve the base variable type
 		baseType := a.resolveVariableType(ident)
-		fmt.Printf("DEBUG: Base variable %s has type %s\n", ident.Name, baseType)
 
 		if baseType != "" {
 			parts := strings.Split(baseType, ".")
@@ -646,7 +619,6 @@ func (a *Analyzer) resolveNestedSelector(sel *ast.SelectorExpr) string {
 				// Look up the field type in the struct
 				if fields, ok := a.StructFields[typeName]; ok {
 					if fieldType, ok := fields[sel.Sel.Name]; ok {
-						fmt.Printf("DEBUG: Found field %s type: %+v\n", sel.Sel.Name, fieldType)
 						// Use the package name from the field type if available
 						if fieldType.PackageName != "" {
 							return fmt.Sprintf("%s.%s", fieldType.PackageName, fieldType.TypeName)
