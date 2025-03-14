@@ -121,13 +121,13 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 		processStructsAndEnums(&sb, nodes, kg, nodeMap, enumValues)
 
 		// Process global functions with <fn> fields and get function number mapping
-		funcNumMap := processGlobalFunctionsWithFields(&sb, pkgName, nodes)
+		funcNumMap, numParts, partMap := processGlobalFunctionsWithFields(&sb, pkgName, nodes)
 
 		// Process relationships within package
 		processPackageRelationships(&sb, kg, nodes, nodeMap)
 
 		// Generate "has" relationships between files and functions
-		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap)
+		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, numParts, partMap)
 
 		// Generate "has" relationships between files and structs
 		generateHasRelationships(&sb, pkgName, fileToStructs, fileNumMap)
@@ -259,10 +259,11 @@ func processStructsAndEnums(sb *strings.Builder, nodes []GraphNode, kg *Structur
 	sb.WriteString("\n")
 }
 
-func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) map[string]int {
+func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) (map[string]int, int, map[int]int) {
 	funcs := filterNodesByType(nodes, FunctionNode)
 	globalFuncs := make([]GraphNode, 0)
 	funcNumMap := make(map[string]int)
+	funcNum := 0
 
 	// Filter out member functions
 	for _, f := range funcs {
@@ -273,25 +274,62 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 		}
 	}
 
-	if len(globalFuncs) > 0 {
-		sb.WriteString(fmt.Sprintf("    %s_functions [label=\"{Functions", sanitizeID(pkgName)))
-		for i, f := range globalFuncs {
-			if data, ok := f.Data.(map[string]interface{}); ok {
-				funcName := fmt.Sprintf("%v", data["function_name"])
-				inputParams := fmt.Sprintf("%v", data["input_params"])
-				returnParams := fmt.Sprintf("%v", data["return_params"])
-
-				label := funcName + inputParams
-				if returnParams != "" {
-					label += " " + returnParams
-				}
-				sb.WriteString(fmt.Sprintf("|<fn%d> %s", i+1, label))
-				funcNumMap[funcName] = i + 1
-			}
-		}
-		sb.WriteString("}\"];\n\n")
+	if len(globalFuncs) == 0 {
+		return funcNumMap, 0, nil
 	}
-	return funcNumMap
+
+	const maxLabelLength = 16000 // Keep some buffer below 16384
+	var currentLength int
+	var currentPart int
+
+	// Start first part
+	currentPart++
+	sb.WriteString(fmt.Sprintf("    %s_functions_part%d [label=\"{Functions",
+		sanitizeID(pkgName), currentPart))
+	currentLength = len("Functions")
+
+	// Store the part number for each function as we create it
+	partMap := make(map[int]int) // funcNum -> partNum
+
+	for _, f := range globalFuncs {
+		if data, ok := f.Data.(map[string]interface{}); ok {
+			funcName := fmt.Sprintf("%v", data["function_name"])
+			inputParams := fmt.Sprintf("%v", data["input_params"])
+			returnParams := fmt.Sprintf("%v", data["return_params"])
+
+			label := funcName + inputParams
+			if returnParams != "" {
+				label += " " + returnParams
+			}
+
+			entryLength := len(fmt.Sprintf("|<fn%d> %s", funcNum+1, label))
+
+			if currentLength+entryLength > maxLabelLength {
+				sb.WriteString("}\"];\n\n")
+				currentPart++
+				sb.WriteString(fmt.Sprintf("    %s_functions_part%d [label=\"{Functions",
+					sanitizeID(pkgName), currentPart))
+				currentLength = len("Functions")
+			}
+
+			funcNum++
+			sb.WriteString(fmt.Sprintf("|<fn%d> %s", funcNum, label))
+			currentLength += entryLength
+			funcNumMap[funcName] = funcNum
+			partMap[funcNum] = currentPart // Store which part this function belongs to
+		}
+	}
+	sb.WriteString("}\"];\n\n")
+
+	// Add invisible edges between parts
+	for i := 1; i < currentPart; i++ {
+		sb.WriteString(fmt.Sprintf("    %s_functions_part%d -> %s_functions_part%d [style=invis];\n",
+			sanitizeID(pkgName), i, sanitizeID(pkgName), i+1))
+	}
+	sb.WriteString("\n")
+
+	// Store the part mapping in a global variable or pass it through the return value
+	return funcNumMap, currentPart, partMap
 }
 
 func processPackageRelationships(sb *strings.Builder, kg *StructuredKnowledgeGraph, nodes []GraphNode, nodeMap map[string]GraphNode) {
@@ -324,17 +362,20 @@ func processPackageRelationships(sb *strings.Builder, kg *StructuredKnowledgeGra
 	}
 }
 
-func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int) {
-	// Generate relationships
+func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, numParts int, partMap map[int]int) {
+	// Generate relationships using the part mapping from processGlobalFunctionsWithFields
 	for file, funcs := range fileToFuncs {
 		if fileNum, exists := fileNumMap[file]; exists {
 			for _, fn := range funcs {
 				if funcNum, exists := funcNumMap[fn]; exists {
-					sb.WriteString(fmt.Sprintf("    %s_files:f%d -> %s_functions:fn%d [label=\"contains\"];\n",
-						sanitizeID(pkgName),
-						fileNum,
-						sanitizeID(pkgName),
-						funcNum))
+					if partNum, exists := partMap[funcNum]; exists {
+						sb.WriteString(fmt.Sprintf("    %s_files:f%d -> %s_functions_part%d:fn%d [label=\"has\"];\n",
+							sanitizeID(pkgName),
+							fileNum,
+							sanitizeID(pkgName),
+							partNum,
+							funcNum))
+					}
 				}
 			}
 		}

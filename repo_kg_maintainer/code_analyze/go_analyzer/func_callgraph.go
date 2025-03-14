@@ -69,13 +69,8 @@ type Analyzer struct {
 	StructFields map[string]map[string]TypeInfo // Map of struct name -> field name -> type info
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go-call-graph <project-dir>")
-		os.Exit(1)
-	}
-
-	projectDir := os.Args[1]
+// GenerateCallGraph takes a directory path and returns an array of call relationships
+func GenerateCallGraph(projectDir string) ([]Relationship, error) {
 	analyzer := &Analyzer{
 		Packages:      make(map[string]string),
 		Functions:     make(map[string]string),
@@ -99,14 +94,13 @@ func main() {
 		if !info.IsDir() && strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
 			err = analyzer.analyzeFileForDeclarations(path)
 			if err != nil {
-				fmt.Printf("Error analyzing declarations in %s: %v\n", path, err)
+				return fmt.Errorf("error analyzing declarations in %s: %v", path, err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("Error walking the path %s: %v\n", projectDir, err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error in first pass: %v", err)
 	}
 
 	// Second pass: analyze function calls
@@ -117,20 +111,34 @@ func main() {
 		if !info.IsDir() && strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
 			err = analyzer.analyzeFileForCalls(path)
 			if err != nil {
-				fmt.Printf("Error analyzing calls in %s: %v\n", path, err)
+				return fmt.Errorf("error analyzing calls in %s: %v", path, err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("Error walking the path %s: %v\n", projectDir, err)
+		return nil, fmt.Errorf("error in second pass: %v", err)
+	}
+
+	return analyzer.Relationships, nil
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go-call-graph <project-dir>")
 		os.Exit(1)
 	}
 
-	// Print all discovered relationships
+	projectDir := os.Args[1]
+	relationships, err := GenerateCallGraph(projectDir)
+	if err != nil {
+		fmt.Printf("Error generating call graph: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Println("Function Call Relationships:")
 	fmt.Println("----------------------------")
-	for _, rel := range analyzer.Relationships {
+	for _, rel := range relationships {
 		fmt.Printf("%s -> %s\n", rel.Caller, rel.Callee)
 	}
 }
@@ -275,6 +283,11 @@ func (a *Analyzer) processVarDeclaration(decl *ast.GenDecl, packageName string) 
 }
 
 func (a *Analyzer) processFuncDeclaration(funcDecl *ast.FuncDecl, packageName string) {
+	// Add the function to our known functions map
+	if funcDecl.Recv == nil {
+		a.Functions[funcDecl.Name.Name] = packageName
+	}
+
 	// Create new scope for function
 	functionScope := ast.NewScope(a.CurrentScope)
 
@@ -481,7 +494,6 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 		case *ast.FuncDecl:
 			// Set the current function we're analyzing
 			if x.Recv == nil {
-				// Regular function
 				a.CurrentFunction = fmt.Sprintf("%s.%s", packageName, x.Name.Name)
 			} else {
 				// Method
@@ -502,10 +514,20 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 			}
 
 			// Analyze the function body for calls
-			ast.Inspect(x.Body, func(n ast.Node) bool {
-				a.analyzeNode(n)
-				return true
-			})
+			if x.Body != nil {
+				ast.Inspect(x.Body, func(n ast.Node) bool {
+					if call, ok := n.(*ast.CallExpr); ok {
+						callee := a.getCalleeName(call.Fun)
+						if callee != "" {
+							a.Relationships = append(a.Relationships, Relationship{
+								Caller: a.CurrentFunction,
+								Callee: callee,
+							})
+						}
+					}
+					return true
+				})
+			}
 
 		case *ast.GoStmt:
 			// Handle goroutine calls
@@ -525,35 +547,16 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 	return nil
 }
 
-// analyzeNode analyzes a single AST node for function calls
-func (a *Analyzer) analyzeNode(n ast.Node) {
-	if n == nil {
-		return
-	}
-
-	switch x := n.(type) {
-	case *ast.CallExpr:
-		callee := a.getCalleeName(x.Fun)
-		if callee != "" {
-			// Check for recursive calls
-			if callee == a.CurrentFunction {
-				a.Relationships = append(a.Relationships, Relationship{
-					Caller: a.CurrentFunction,
-					Callee: callee + " (self recursive)",
-				})
-			} else {
-				a.Relationships = append(a.Relationships, Relationship{
-					Caller: a.CurrentFunction,
-					Callee: callee,
-				})
-			}
-		}
-	}
-}
-
 // getCalleeName determines the name of the function or method being called
 func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 	switch x := expr.(type) {
+	case *ast.Ident:
+		// Handle local function calls within the same package
+		if _, ok := a.Functions[x.Name]; ok {
+			return fmt.Sprintf("%s.%s", a.CurrentPackage, x.Name)
+		}
+		return ""
+
 	case *ast.SelectorExpr:
 		// Handle nested selector expressions (e.g., v.StartTime.Equal)
 		switch inner := x.X.(type) {
