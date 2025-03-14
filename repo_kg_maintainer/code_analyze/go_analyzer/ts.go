@@ -34,6 +34,8 @@ type Edge struct {
 }
 
 // KnowledgeGraph represents our code structure
+// This struct is different from StructuredKnowledgeGraph defined in knowledge_graph.go
+// KnowledgeGraph is for debugging information. StructuredKnowledgeGraph is for final output knowledge_graph.json file
 type KnowledgeGraph struct {
 	Nodes map[string]*Node
 	Edges []*Edge
@@ -93,9 +95,10 @@ func main() {
 	}
 
 	// Print the knowledge graph in std
+	// This is for debugging purpose only, not for the final output knowledge_graph.json file
 	printKnowledgeGraph(kg)
 
-	// Save the structured knowledge graph in json file
+	// Save the structuredKG (which is a StructuredKnowledgeGraph) in knowledge_graph.json file
 	if err := saveKnowledgeGraph(); err != nil {
 		fmt.Printf("Error saving knowledge graph: %v\n", err)
 	}
@@ -157,38 +160,87 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 		typeNode := node.NamedChild(0)
 		if typeNode != nil {
 			typeName := getNodeText(typeNode.ChildByFieldName("name"), content)
-			typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
-
-			// Find the package node for this file
-			var packageNode *Node
-			var packageName string
-			for _, n := range kg.Nodes {
-				if n.Type == "package" && n.FilePath == filePath {
-					packageNode = n
-					packageName = n.Name
-					break
-				}
-			}
-
-			if packageNode != nil {
-				addEdge(kg, packageNode, typeNodeObj, "has_struct")
-
-				// Update the struct data in the structured graph with package name
-				for i, n := range structuredKG.Nodes {
-					if n.Type == StructNode && n.ID == generateNodeID(StructNode, typeName, filePath) {
-						if structData, ok := n.Data.(StructInfo); ok {
-							structData.PackageName = packageName
-							structuredKG.Nodes[i].Data = structData
-						}
-						break
-					}
-				}
-			}
 
 			// Get the underlying type definition
 			typeDefNode := typeNode.ChildByFieldName("type")
-			if typeDefNode != nil && typeDefNode.Type() == "struct_type" {
-				processStructFields(typeDefNode, content, filePath, kg, typeNodeObj, typeName)
+			if typeDefNode != nil {
+				// Find the package node for this file first
+				var packageNode *Node
+				var packageName string
+				for _, n := range kg.Nodes {
+					if n.Type == "package" && n.FilePath == filePath {
+						packageNode = n
+						packageName = n.Name
+						break
+					}
+				}
+
+				if typeDefNode.Type() == "struct_type" {
+					// Handle struct type
+					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
+
+					if packageNode != nil {
+						addEdge(kg, packageNode, typeNodeObj, "has_struct")
+
+						// Update the struct data in the structured graph with package name
+						for i, n := range structuredKG.Nodes {
+							if n.Type == StructNode && n.ID == generateNodeID(StructNode, typeName, filePath) {
+								if structData, ok := n.Data.(StructInfo); ok {
+									structData.PackageName = packageName
+									structuredKG.Nodes[i].Data = structData
+								}
+								break
+							}
+						}
+					}
+
+					processStructFields(typeDefNode, content, filePath, kg, typeNodeObj, typeName)
+				} else if typeDefNode.Type() == "function_type" {
+					// Handle function type
+					functionNodeObj := addNode(kg, "function", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
+
+					// Extract parameters and return types from the function type
+					paramsNode := typeDefNode.ChildByFieldName("parameters")
+					resultNode := typeDefNode.ChildByFieldName("result")
+
+					var inputParams, returnParams string
+					if paramsNode != nil {
+						inputParams = getNodeText(paramsNode, content)
+					}
+					if resultNode != nil {
+						returnParams = getNodeText(resultNode, content)
+					}
+
+					if packageNode != nil {
+						addEdge(kg, packageNode, functionNodeObj, "has_function")
+
+						// Update the function data in the structured graph
+						for i, n := range structuredKG.Nodes {
+							if n.Type == FunctionNode && n.ID == generateNodeID(FunctionNode, typeName, filePath) {
+								funcData := Function{
+									PackageName:  packageName,
+									FunctionName: typeName,
+									InputParams:  inputParams,
+									ReturnParams: returnParams,
+									Location: CodeLocation{
+										FilePath: filePath,
+										Line:     int(typeNode.StartPoint().Row + 1),
+										Col:      int(typeNode.StartPoint().Column + 1),
+										LineEnd:  int(typeNode.EndPoint().Row + 1),
+									},
+								}
+								structuredKG.Nodes[i].Data = funcData
+								break
+							}
+						}
+					}
+				} else {
+					// Handle other types. e.g, enum
+					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
+					if packageNode != nil {
+						addEdge(kg, packageNode, typeNodeObj, "has_type_spec")
+					}
+				}
 			}
 		}
 	}
