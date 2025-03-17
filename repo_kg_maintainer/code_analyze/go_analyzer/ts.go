@@ -90,12 +90,29 @@ func findNodeID(nodeIds mapset.Set[string], filePath string, nodeName string) (s
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: program <project-path>")
+	// Parse debug flag
+	debug := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--debug" {
+			debug = true
+			break
+		}
+	}
+
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: program <project-path> [--debug]")
 		os.Exit(1)
 	}
 
 	projectPath := os.Args[1]
+	if projectPath == "--debug" {
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: program <project-path> [--debug]")
+			os.Exit(1)
+		}
+		projectPath = os.Args[2]
+	}
+
 	kg := NewKnowledgeGraph()
 	parser := sitter.NewParser()
 	language := golang.GetLanguage()
@@ -112,7 +129,10 @@ func main() {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(path, ".go") {
-			if err := parseFile(path, parser, kg); err != nil {
+			if debug {
+				fmt.Printf("Scanning file: %s\n", path)
+			}
+			if err := parseFile(path, parser, kg, debug); err != nil {
 				fmt.Printf("Error parsing %s: %v\n", path, err)
 			}
 		}
@@ -167,7 +187,7 @@ func main() {
 	}
 }
 
-func parseFile(filePath string, parser *sitter.Parser, kg *KnowledgeGraph) error {
+func parseFile(filePath string, parser *sitter.Parser, kg *KnowledgeGraph, debug bool) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -180,22 +200,35 @@ func parseFile(filePath string, parser *sitter.Parser, kg *KnowledgeGraph) error
 	}
 	defer tree.Close()
 
-	// Use the new two-pass processing
-	ProcessASTNodes(tree.RootNode(), content, filePath, kg)
+	// Use the new two-pass processing with debug flag
+	ProcessASTNodes(tree.RootNode(), content, filePath, kg, debug)
 
 	return nil
 }
 
 // First, add a new function to process all nodes first
-func ProcessASTNodes(root *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
+func ProcessASTNodes(root *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, debug bool) {
+	if debug {
+		fmt.Println("\nProcessing AST nodes for:", filePath)
+	}
+
 	// First pass: Process package declaration
+	if debug {
+		fmt.Println("- Processing package declaration")
+	}
 	processPackageDecl(root, content, filePath, kg)
 
 	// Second pass: Process all type declarations
-	processTypes(root, content, filePath, kg)
+	if debug {
+		fmt.Println("- Processing type declarations")
+	}
+	processTypes(root, content, filePath, kg, debug)
 
 	// Third pass: Process everything else
-	processOtherNodes(root, content, filePath, kg)
+	if debug {
+		fmt.Println("- Processing other nodes")
+	}
+	processOtherNodes(root, content, filePath, kg, debug)
 }
 
 func processPackageDecl(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
@@ -218,7 +251,7 @@ func processPackageDecl(node *sitter.Node, content []byte, filePath string, kg *
 	}
 }
 
-func processTypes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
+func processTypes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, debug bool) {
 	// Find the package name first
 	var packageName string
 	for _, n := range kg.Nodes {
@@ -232,6 +265,9 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 		typeNode := node.NamedChild(0)
 		if typeNode != nil {
 			typeName := getNodeText(typeNode.ChildByFieldName("name"), content)
+			if debug {
+				fmt.Printf("  Found type declaration: %s\n", typeName)
+			}
 
 			// Get the underlying type definition
 			typeDefNode := typeNode.ChildByFieldName("type")
@@ -372,7 +408,7 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 
 	// Recursively process children
 	for i := 0; i < int(node.NamedChildCount()); i++ {
-		processTypes(node.NamedChild(i), content, filePath, kg)
+		processTypes(node.NamedChild(i), content, filePath, kg, debug)
 	}
 }
 
@@ -489,7 +525,7 @@ func processRegularField(fieldName string, typeRef *sitter.Node, content []byte,
 	}
 }
 
-func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
+func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, debug bool) {
 	// Find the package name first
 	var packageName string
 	for _, n := range kg.Nodes {
@@ -851,7 +887,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 
 	// Recursively process children
 	for i := 0; i < int(node.NamedChildCount()); i++ {
-		processOtherNodes(node.NamedChild(i), content, filePath, kg)
+		processOtherNodes(node.NamedChild(i), content, filePath, kg, debug)
 	}
 }
 

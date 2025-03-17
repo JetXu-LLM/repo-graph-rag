@@ -10,6 +10,15 @@ import (
 
 // Main function to demonstrate the usage
 func main() {
+	// Parse debug flag
+	debug := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--debug" {
+			debug = true
+			break
+		}
+	}
+
 	// Read knowledge graph from file
 	jsonData, err := os.ReadFile("knowledge_graph.json")
 	if err != nil {
@@ -25,7 +34,7 @@ func main() {
 	}
 
 	// Generate DOT representation
-	dotOutput := GenerateDOT(&kg)
+	dotOutput := GenerateDOT(&kg, debug)
 
 	// Write to file
 	if err := os.WriteFile("output.dot", []byte(dotOutput), 0644); err != nil {
@@ -36,7 +45,7 @@ func main() {
 	fmt.Println("DOT file successfully generated: output.dot")
 }
 
-func GenerateDOT(kg *StructuredKnowledgeGraph) string {
+func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 	var sb strings.Builder
 
 	// Start the digraph
@@ -97,20 +106,22 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 		}
 	}
 	// JSON dump of nodeMap
-	jsonData, err := json.MarshalIndent(nodeMap, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling nodeMap: %v\n", err)
-		os.Exit(1)
-	}
-	os.WriteFile("nodeMap.json", jsonData, 0644)
+	if debug {
+		jsonData, err := json.MarshalIndent(nodeMap, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling nodeMap: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("nodeMap.debug.json", jsonData, 0644)
 
-	// JSON dump of packageNodes
-	jsonData, err = json.MarshalIndent(packageNodes, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling packageNodes: %v\n", err)
-		os.Exit(1)
+		// JSON dump of packageNodes
+		jsonData, err = json.MarshalIndent(packageNodes, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling packageNodes: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("packageNodes.debug.json", jsonData, 0644)
 	}
-	os.WriteFile("packageNodes.json", jsonData, 0644)
 
 	// Process edges to collect enum values
 	for _, edge := range kg.Edges {
@@ -177,12 +188,14 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 	}
 
 	// JSON dump of packageStructMethodMap
-	jsonData, err = json.MarshalIndent(packageStructMethodMap, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling packageStructMethodMap: %v\n", err)
-		os.Exit(1)
+	if debug {
+		jsonData, err := json.MarshalIndent(packageStructMethodMap, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling packageStructMethodMap: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("packageStructMethodMap.debug.json", jsonData, 0644)
 	}
-	os.WriteFile("packageStructMethodMap.json", jsonData, 0644)
 
 	// Generate "calls" relationships between functions and functions
 	for _, edge := range kg.Edges {
@@ -338,7 +351,7 @@ func processStructsAndEnums(
 					if fieldNode, exists := nodeMap[fieldFullID]; exists {
 						if fieldData, ok := fieldNode.Data.(map[string]interface{}); ok {
 							fieldName := fmt.Sprintf("%v", fieldData["field_name"])
-							fieldType := fmt.Sprintf("%v", fieldData["field_type"])
+							fieldType := sanitizeParams(fmt.Sprintf("%v", fieldData["field_type"]))
 							sb.WriteString(fmt.Sprintf("%s %s\\l", fieldName, fieldType))
 						}
 					}
@@ -357,8 +370,8 @@ func processStructsAndEnums(
 								if parts := strings.Split(funcName, "."); len(parts) > 1 {
 									funcName = parts[1]
 								}
-								inputParams := fmt.Sprintf("%v", funcData["input_params"])
-								returnParams := fmt.Sprintf("%v", funcData["return_params"])
+								inputParams := sanitizeParams(fmt.Sprintf("%v", funcData["input_params"]))
+								returnParams := sanitizeParams(fmt.Sprintf("%v", funcData["return_params"]))
 
 								methodNum++
 								methodStr := fmt.Sprintf("<m%d> %s%s", methodNum, funcName, inputParams)
@@ -377,6 +390,17 @@ func processStructsAndEnums(
 	}
 	sb.WriteString("\n")
 	return methodNumMap
+}
+
+func sanitizeParams(params string) string {
+	// Replace "chan struct{}" with "chan struct"
+	params = strings.ReplaceAll(params, "struct{}", "struct")
+	// Replace nested struct definitions with just "struct"
+	if idx := strings.Index(params, "struct {"); idx != -1 {
+		prefix := params[:idx]
+		return prefix + "struct"
+	}
+	return params
 }
 
 func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) (map[string]int, int, map[int]int) {
@@ -414,8 +438,8 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 	for _, f := range globalFuncs {
 		if data, ok := f.Data.(map[string]interface{}); ok {
 			funcName := fmt.Sprintf("%v", data["function_name"])
-			inputParams := fmt.Sprintf("%v", data["input_params"])
-			returnParams := fmt.Sprintf("%v", data["return_params"])
+			inputParams := sanitizeParams(fmt.Sprintf("%v", data["input_params"]))
+			returnParams := sanitizeParams(fmt.Sprintf("%v", data["return_params"]))
 
 			label := funcName + inputParams
 			if returnParams != "" {
