@@ -855,12 +855,18 @@ class PythonRelationExtractor:
         while current_node:
             self.logger.debug(f"Resolving node type: {current_node.type} [position:{current_node.start_point}]")
             
-            # Handle identifier nodes (base elements)
             if current_node.type == 'identifier':
                 identifier = self._get_node_text(current_node, content)
                 self.logger.debug(f"Found identifier: {identifier}")
                 parts.append(identifier)
                 resolution_path.append(f"identifier:{identifier}")
+                
+                # Check if this identifier is a method reference first
+                if hasattr(self, 'method_references') and file_path in self.method_references and identifier in self.method_references[file_path]:
+                    method_ref = self.method_references[file_path][identifier]
+                    self.logger.debug(f"Found method reference for {identifier}: {method_ref}")
+                    # Return the full method reference directly
+                    return method_ref, resolution_path, None
                 
                 # Check if this identifier has a known type from various sources
                 # 1. Variable type mapping
@@ -1471,16 +1477,41 @@ class PythonRelationExtractor:
             # Create caller reference
             caller_ref = None
             if node_parent.startswith("<") and node_parent.endswith("_global>"):
-                # For global scope, create a synthetic caller reference
-                module_name = node_parent.strip("<>").replace("_global", "")
-                caller_ref = EntityReference(
-                    name=module_name,
-                    key=f"Module/{file_path}/{module_name}",  # Include module name in key
-                    entity_type="Module",
-                    parent_name=None,
-                    module_path=file_path,
-                    is_local=True
-                )
+                # Check if this is a method reference call
+                if node.type == 'call' and node.child_by_field_name('function') and node.child_by_field_name('function').type == 'identifier':
+                    func_name = self._get_node_text(node.child_by_field_name('function'), content)
+                    if hasattr(self, 'method_references') and file_path in self.method_references and func_name in self.method_references[file_path]:
+                        # For method reference calls, use the reference name as caller
+                        caller_ref = EntityReference(
+                            name=func_name,
+                            key=f"Variable/{file_path}/{func_name}",
+                            entity_type="Variable",
+                            parent_name=None,
+                            module_path=file_path,
+                            is_local=True
+                        )
+                    else:
+                        # For other global calls, use module as caller
+                        module_name = node_parent.strip("<>").replace("_global", "")
+                        caller_ref = EntityReference(
+                            name=module_name,
+                            key=f"Module/{file_path}/{module_name}",  # Include module name in key
+                            entity_type="Module",
+                            parent_name=None,
+                            module_path=file_path,
+                            is_local=True
+                        )
+                else:
+                    # For other global calls, use module as caller
+                    module_name = node_parent.strip("<>").replace("_global", "")
+                    caller_ref = EntityReference(
+                        name=module_name,
+                        key=f"Module/{file_path}/{module_name}",  # Include module name in key
+                        entity_type="Module",
+                        parent_name=None,
+                        module_path=file_path,
+                        is_local=True
+                    )
             else:
                 caller_ref = self._create_entity_reference(node_parent, import_map, file_path)
                 
@@ -1655,13 +1686,14 @@ class PythonRelationExtractor:
         """
         A relation is valid if both source and target keys exist in repo_entities.
         Special handling for module-level entities.
+        Filter out relations where source is a Module type.
         """
-        # Special handling for module level entities
+        # Skip relations where source is a Module
         if relation.source.entity_type == "Module":
-            source_valid = True  # Always consider module source as valid
-        else:
-            source_valid = relation.source.key in self.entity_by_key
+            self.logger.debug(f"Skipping module source relation: {relation.source.name} -> {relation.target.name}")
+            return False
             
+        source_valid = relation.source.key in self.entity_by_key
         target_valid = relation.target.key in self.entity_by_key
         
         if not source_valid or not target_valid:
