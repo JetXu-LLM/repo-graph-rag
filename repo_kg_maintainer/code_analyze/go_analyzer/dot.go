@@ -44,11 +44,21 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 	sb.WriteString("  node [shape=record];\n  edge [minlen=2];\n  graph [\n    splines=true,\n    nodesep=0.5,\n    overlap=false,\n    ranksep=1.0,\n    concentrate=true\n  ];\n")
 
 	// Organize nodes by package
+	// packageNodes is a map[string][]GraphNode tracking package_name -> []GraphNode
 	packageNodes := make(map[string][]GraphNode)
+
+	// nodeMap is a map[string]GraphNode tracking node_id -> GraphNode
 	nodeMap := make(map[string]GraphNode)
+
+	// enumValues is a map[string][]string tracking struct_name -> []value_name
 	enumValues := make(map[string][]string)
+
+	// Map to trace file_path -> []function_name
+	// function_name here can be "function_name" or "struct_name.function_name"
 	fileToFuncs := make(map[string][]string)
-	fileToStructs := make(map[string][]string) // Map to track file -> struct relationships
+
+	// Map to track file_path -> struct_name
+	fileToStructs := make(map[string][]string)
 
 	// First pass: organize nodes and build maps
 	for _, node := range kg.Nodes {
@@ -105,23 +115,39 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 		}
 	}
 
+	// packageFunctionMap is a map[string]map[string]string
+	// tracking package_name -> function_name -> fmt.Sprintf("%d:%d", numParts, function_number)
+	packageFunctionMap := make(map[string]map[string]string)
+	// packageStructMethodMap is a map[string]map[string]map[string]int
+	// tracking package_name -> struct_name -> method_name -> method_number
+	packageStructMethodMap := make(map[string]map[string]map[string]int)
 	// Generate subgraphs for each package
 	for pkgName, nodes := range packageNodes {
 		sb.WriteString(fmt.Sprintf("  subgraph cluster_%s {\n", sanitizeID(pkgName)))
 		sb.WriteString(fmt.Sprintf("    label = \"package: %s\";\n", pkgName))
 		sb.WriteString("    color = lightblue;\n\n")
 
-		// Generate files record with <fn> fields and get file number mapping
-		fileNumMap := generateFilesRecordWithFields(&sb, pkgName, nodes, fileToFuncs)
+		// Generate files record with <f> fields and get file number mapping
+		// fileNumMap is a map tracking file_path -> int. File paths are sorted alphabetically
+		fileNumMap := generateFilesRecordWithFields(&sb, pkgName, nodes)
 
 		// Generate globals record
 		generateGlobalsRecord(&sb, pkgName, nodes)
 
 		// Process structs and enums
-		processStructsAndEnums(&sb, nodes, kg, nodeMap, enumValues)
+		// methodNumMap is a map[string]map[string]int tracking struct_name -> method_name -> method_number
+		methodNumMap := processStructsAndEnums(&sb, nodes, kg, nodeMap, enumValues)
+		packageStructMethodMap[pkgName] = methodNumMap
 
 		// Process global functions with <fn> fields and get function number mapping
+		// funcNumMap is a map[string]int tracking global function_name -> int
+		// numParts is a int tracking the number of parts in the global functions record
+		// partMap is a map[int]int tracking function_number -> part_number
 		funcNumMap, numParts, partMap := processGlobalFunctionsWithFields(&sb, pkgName, nodes)
+		packageFunctionMap[pkgName] = make(map[string]string)
+		for funcName, funcNum := range funcNumMap {
+			packageFunctionMap[pkgName][funcName] = fmt.Sprintf("%d:%d", numParts, funcNum)
+		}
 
 		// Process relationships within package
 		processPackageRelationships(&sb, kg, nodes, nodeMap)
@@ -135,11 +161,77 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 		sb.WriteString("  }\n\n")
 	}
 
+	// JSON dump of packageStructMethodMap
+	jsonData, err := json.MarshalIndent(packageStructMethodMap, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling packageStructMethodMap: %v\n", err)
+		os.Exit(1)
+	}
+	os.WriteFile("packageStructMethodMap.json", jsonData, 0644)
+
+	// Generate "calls" relationships between functions and functions
+	for _, edge := range kg.Edges {
+		if edge.RelationType == Calls {
+			callerPackage := getPackageName(nodeMap[edge.SourceID])
+			callerFuncName := getNodeLabel(nodeMap[edge.SourceID]) // "function_name" or "struct_name.function_name"
+			calleePackage := getPackageName(nodeMap[edge.TargetID])
+			calleeFuncName := getNodeLabel(nodeMap[edge.TargetID]) // "function_name" or "struct_name.function_name"
+			callerFuncNameParts := strings.Split(callerFuncName, ".")
+			calleeFuncNameParts := strings.Split(calleeFuncName, ".")
+
+			// If caller is a method, callerStr is
+			// fmt.Sprintf("%s_%s:m%d", sanitizeID(callerPackage), structName, methodNum)
+			// If callerStr is a global function, callerStr is
+			// fmt.Sprintf("%s_functions_part%d:fn%d", sanitizeID(callerPackage), numParts, funcNum)
+			var callerStr string
+
+			// If callee is a method, it is
+			// fmt.Sprintf("%s_%s:m%d", sanitizeID(calleePackage), structName, methodNum)
+			// If callee is a global function, calleeStr is
+			// fmt.Sprintf("%s_functions_part%d:fn%d", sanitizeID(calleePackage), numParts, funcNum)
+			var calleeStr string
+
+			if len(callerFuncNameParts) > 1 {
+				// This is a method caller
+				structName := callerFuncNameParts[0]
+				functionName := callerFuncNameParts[1]
+				methodNum := packageStructMethodMap[callerPackage][structName][functionName]
+				if methodNum == 0 {
+					fmt.Printf("Methodnum is 0: %s %s %s\n", sanitizeID(callerPackage), structName, functionName)
+				}
+				callerStr = fmt.Sprintf("%s_%s:m%d", sanitizeID(callerPackage), structName, methodNum)
+			} else {
+				// This is a global function caller
+				parts := strings.Split(packageFunctionMap[callerPackage][callerFuncName], ":")
+				numParts := parts[0]
+				funcNum := parts[1]
+				callerStr = fmt.Sprintf("%s_functions_part%s:fn%s", sanitizeID(callerPackage), numParts, funcNum)
+			}
+			if len(calleeFuncNameParts) > 1 {
+				// This is a method callee
+				structName := calleeFuncNameParts[0]
+				functionName := calleeFuncNameParts[1]
+				methodNum := packageStructMethodMap[calleePackage][structName][functionName]
+				calleeStr = fmt.Sprintf("%s_%s:m%d", sanitizeID(calleePackage), structName, methodNum)
+			} else {
+				// This is a global function callee
+				parts := strings.Split(packageFunctionMap[calleePackage][calleeFuncName], ":")
+				numParts := parts[0]
+				funcNum := parts[1]
+				calleeStr = fmt.Sprintf("%s_functions_part%s:fn%s", sanitizeID(calleePackage), numParts, funcNum)
+			}
+			sb.WriteString(
+				fmt.Sprintf("    %s -> %s [label=\"calls\"];\n",
+					callerStr,
+					calleeStr))
+		}
+	}
+
 	sb.WriteString("}\n")
 	return sb.String()
 }
 
-func generateFilesRecordWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode, fileToFuncs map[string][]string) map[string]int {
+func generateFilesRecordWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) map[string]int {
 	files := make(map[string]bool)
 	fileNumMap := make(map[string]int) // Map to track file numbers
 
@@ -188,11 +280,18 @@ func generateGlobalsRecord(sb *strings.Builder, pkgName string, nodes []GraphNod
 	}
 }
 
-func processStructsAndEnums(sb *strings.Builder, nodes []GraphNode, kg *StructuredKnowledgeGraph, nodeMap map[string]GraphNode, enumValues map[string][]string) {
+func processStructsAndEnums(
+	sb *strings.Builder, nodes []GraphNode, kg *StructuredKnowledgeGraph,
+	nodeMap map[string]GraphNode, enumValues map[string][]string) map[string]map[string]int {
 	structs := filterNodesByType(nodes, StructNode)
+
+	// methodNumMap is a map[string]map[string]int tracking struct_name -> method_name -> method_number
+	methodNumMap := make(map[string]map[string]int)
+
 	for _, s := range structs {
 		if data, ok := s.Data.(map[string]interface{}); ok {
 			structName := fmt.Sprintf("%v", data["struct_name"])
+			methodNumMap[structName] = make(map[string]int)
 			pkgName := fmt.Sprintf("%v", data["package_name"])
 
 			// Check if this is an enum
@@ -229,8 +328,9 @@ func processStructsAndEnums(sb *strings.Builder, nodes []GraphNode, kg *Structur
 				}
 			}
 
-			// Process methods
+			// Process methods and add <m> fields
 			sb.WriteString("|")
+			methodNum := 0
 			for _, node := range kg.Nodes {
 				if node.Type == FunctionNode {
 					if funcData, ok := node.Data.(map[string]interface{}); ok {
@@ -243,11 +343,13 @@ func processStructsAndEnums(sb *strings.Builder, nodes []GraphNode, kg *Structur
 								inputParams := fmt.Sprintf("%v", funcData["input_params"])
 								returnParams := fmt.Sprintf("%v", funcData["return_params"])
 
-								methodStr := funcName + inputParams
+								methodNum++
+								methodStr := fmt.Sprintf("<m%d> %s%s", methodNum, funcName, inputParams)
 								if returnParams != "" {
 									methodStr += " " + returnParams
 								}
-								sb.WriteString(methodStr + "\\l")
+								methodNumMap[structName][funcName] = methodNum
+								sb.WriteString(methodStr + "|")
 							}
 						}
 					}
@@ -257,6 +359,7 @@ func processStructsAndEnums(sb *strings.Builder, nodes []GraphNode, kg *Structur
 		}
 	}
 	sb.WriteString("\n")
+	return methodNumMap
 }
 
 func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) (map[string]int, int, map[int]int) {
@@ -284,8 +387,8 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 
 	// Start first part
 	currentPart++
-	sb.WriteString(fmt.Sprintf("    %s_functions_part%d [label=\"{Functions",
-		sanitizeID(pkgName), currentPart))
+	sb.WriteString(fmt.Sprintf("    %s_functions_part%d [label=\"{Functions part%d",
+		sanitizeID(pkgName), currentPart, currentPart))
 	currentLength = len("Functions")
 
 	// Store the part number for each function as we create it
@@ -307,8 +410,8 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 			if currentLength+entryLength > maxLabelLength {
 				sb.WriteString("}\"];\n\n")
 				currentPart++
-				sb.WriteString(fmt.Sprintf("    %s_functions_part%d [label=\"{Functions",
-					sanitizeID(pkgName), currentPart))
+				sb.WriteString(fmt.Sprintf("    %s_functions_part%d [label=\"{Functions part%d",
+					sanitizeID(pkgName), currentPart, currentPart))
 				currentLength = len("Functions")
 			}
 

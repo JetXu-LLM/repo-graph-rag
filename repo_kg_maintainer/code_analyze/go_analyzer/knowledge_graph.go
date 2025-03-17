@@ -73,6 +73,7 @@ const (
 	HasFunction EdgeType = "has_function"
 	Extends     EdgeType = "extends"
 	References  EdgeType = "references"
+	Calls       EdgeType = "calls"
 )
 
 // Rename Node to GraphNode

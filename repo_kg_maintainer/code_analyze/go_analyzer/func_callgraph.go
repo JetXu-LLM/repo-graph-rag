@@ -12,8 +12,10 @@ import (
 
 // Relationship represents a caller -> callee relationship
 type Relationship struct {
-	Caller string
-	Callee string
+	Caller         string
+	Callee         string
+	CallerFilePath string
+	CalleeFilePath string
 }
 
 // StructMethod keeps track of methods belonging to structs
@@ -121,26 +123,6 @@ func GenerateCallGraph(projectDir string) ([]Relationship, error) {
 	}
 
 	return analyzer.Relationships, nil
-}
-
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go-call-graph <project-dir>")
-		os.Exit(1)
-	}
-
-	projectDir := os.Args[1]
-	relationships, err := GenerateCallGraph(projectDir)
-	if err != nil {
-		fmt.Printf("Error generating call graph: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Function Call Relationships:")
-	fmt.Println("----------------------------")
-	for _, rel := range relationships {
-		fmt.Printf("%s -> %s\n", rel.Caller, rel.Callee)
-	}
 }
 
 // analyzeFileForDeclarations collects functions, methods, and packages
@@ -519,9 +501,37 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 					if call, ok := n.(*ast.CallExpr); ok {
 						callee := a.getCalleeName(call.Fun)
 						if callee != "" {
+							// Get the callee's file path from the Functions map
+							calleeFilePath := ""
+							for path, pkg := range a.Packages {
+								if strings.HasPrefix(callee, pkg+".") {
+									// Find the most specific match by walking the directory
+									err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+										if err != nil {
+											return err
+										}
+										if !info.IsDir() && strings.HasSuffix(p, ".go") {
+											// Check if this file contains the callee
+											content, err := os.ReadFile(p)
+											if err == nil && strings.Contains(string(content), strings.TrimPrefix(callee, pkg+".")) {
+												calleeFilePath = p
+												return filepath.SkipAll
+											}
+										}
+										return nil
+									})
+									if err != nil {
+										fmt.Printf("Error finding callee file: %v\n", err)
+									}
+									break
+								}
+							}
+
 							a.Relationships = append(a.Relationships, Relationship{
-								Caller: a.CurrentFunction,
-								Callee: callee,
+								Caller:         a.CurrentFunction,
+								Callee:         callee,
+								CallerFilePath: filePath,
+								CalleeFilePath: calleeFilePath,
 							})
 						}
 					}
@@ -536,9 +546,32 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 			if callee == "" {
 				callee = "anonymous goroutine"
 			}
+			// Similar file path lookup for goroutines
+			calleeFilePath := ""
+			if callee != "anonymous goroutine" {
+				for path, pkg := range a.Packages {
+					if strings.HasPrefix(callee, pkg+".") {
+						// Similar file path lookup as above
+						filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+							if !info.IsDir() && strings.HasSuffix(p, ".go") {
+								content, err := os.ReadFile(p)
+								if err == nil && strings.Contains(string(content), strings.TrimPrefix(callee, pkg+".")) {
+									calleeFilePath = p
+									return filepath.SkipAll
+								}
+							}
+							return nil
+						})
+						break
+					}
+				}
+			}
+
 			a.Relationships = append(a.Relationships, Relationship{
-				Caller: a.CurrentFunction,
-				Callee: callee,
+				Caller:         a.CurrentFunction,
+				Callee:         callee,
+				CallerFilePath: filePath,
+				CalleeFilePath: calleeFilePath,
 			})
 		}
 		return true
