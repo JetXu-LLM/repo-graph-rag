@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/golang"
 )
@@ -23,6 +24,7 @@ type Node struct {
 	EndColumn    uint32
 	Parameters   []string
 	Returns      []string
+	PackageName  string
 	ParentStruct string
 }
 
@@ -37,7 +39,9 @@ type Edge struct {
 // This struct is different from StructuredKnowledgeGraph defined in knowledge_graph.go
 // KnowledgeGraph is for debugging information. StructuredKnowledgeGraph is for final output knowledge_graph.json file
 type KnowledgeGraph struct {
+	// Nodes is a map of node ID to node
 	Nodes map[string]*Node
+	// Edges is a list of edges
 	Edges []*Edge
 }
 
@@ -49,6 +53,10 @@ var structuredKG = StructuredKnowledgeGraph{
 
 // Update the generateNodeID function to accept NodeType
 func generateNodeID(nodeType NodeType, name string, filePath string) string {
+	if filePath == "" || nodeType == ImportNode {
+		// For ImportNode id doesn't need filePath
+		return fmt.Sprintf("%s:%s", string(nodeType), name)
+	}
 	return fmt.Sprintf("%s:%s:%s", string(nodeType), name, filePath)
 }
 
@@ -57,6 +65,28 @@ func NewKnowledgeGraph() *KnowledgeGraph {
 		Nodes: make(map[string]*Node),
 		Edges: make([]*Edge, 0),
 	}
+}
+
+func findNodeID(nodeIds mapset.Set[string], filePath string, nodeName string) (string, bool) {
+	sections := strings.Split(nodeName, ".")
+	var nodeId string
+	if len(sections) == 2 {
+		// package.function
+		funcName := sections[1]
+		nodeId = fmt.Sprintf("function:%s:%s", funcName, filePath)
+		if nodeIds.Contains(nodeId) {
+			return nodeId, true
+		}
+	} else if len(sections) == 3 {
+		// package.struct.function
+		funcName := sections[2]
+		structName := sections[1]
+		nodeId = fmt.Sprintf("function:%s.%s:%s", structName, funcName, filePath)
+		if nodeIds.Contains(nodeId) {
+			return nodeId, true
+		}
+	}
+	return "", false
 }
 
 func main() {
@@ -98,6 +128,39 @@ func main() {
 	// This is for debugging purpose only, not for the final output knowledge_graph.json file
 	printKnowledgeGraph(kg)
 
+	// Generate the call graph
+	relationships, err := GenerateCallGraph(projectPath)
+	if err != nil {
+		fmt.Printf("Error generating call graph: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Add all node IDs to a set
+	nodeIds := mapset.NewSet[string]()
+	for _, node := range structuredKG.Nodes {
+		nodeIds.Add(node.ID)
+	}
+
+	// Add the call graph to the knowledge graph
+	for _, relationship := range relationships {
+		callerID, exists := findNodeID(nodeIds, relationship.CallerFilePath, relationship.Caller)
+		if !exists {
+			fmt.Printf("Caller node not found: [function:%s:%s]\n", relationship.Caller, relationship.CallerFilePath)
+			continue
+		}
+		calleeID, exists := findNodeID(nodeIds, relationship.CalleeFilePath, relationship.Callee)
+		if !exists {
+			fmt.Printf("Callee node not found: [function:%s:%s]\n", relationship.Callee, relationship.CalleeFilePath)
+			continue
+		}
+		structuredKG.Edges = append(structuredKG.Edges, GraphEdge{
+			SourceType:   "function",
+			SourceID:     callerID,
+			TargetType:   "function",
+			TargetID:     calleeID,
+			RelationType: Calls,
+		})
+	}
 	// Save the structuredKG (which is a StructuredKnowledgeGraph) in knowledge_graph.json file
 	if err := saveKnowledgeGraph(); err != nil {
 		fmt.Printf("Error saving knowledge graph: %v\n", err)
@@ -365,6 +428,15 @@ func processRegularField(fieldName string, typeRef *sitter.Node, content []byte,
 }
 
 func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
+	// Find the package name for this file first
+	var currentPackage string
+	for _, n := range kg.Nodes {
+		if n.Type == "package" && n.FilePath == filePath {
+			currentPackage = n.Name
+			break
+		}
+	}
+
 	switch node.Type() {
 	case "source_file":
 		// Process package declaration and imports
@@ -372,7 +444,8 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 			child := node.NamedChild(i)
 			if child.Type() == "package_clause" {
 				packageName := getNodeText(child.NamedChild(0), content)
-				addNode(kg, "package", packageName, filePath, child.StartPoint(), child.EndPoint(), "")
+				pkgNode := addNode(kg, "package", packageName, filePath, child.StartPoint(), child.EndPoint(), "")
+				pkgNode.PackageName = packageName // Set package name for package node
 			} else if child.Type() == "import_declaration" {
 				processImports(child, filePath, content, kg)
 			}
@@ -394,6 +467,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 				break
 			}
 		}
+		fmt.Printf("Found package name: %s\n", packageName)
 
 		if node.Type() == "method_declaration" {
 			// Handle method name with receiver
@@ -404,17 +478,21 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 				if paramDecl != nil {
 					paramText := getNodeText(paramDecl, content)
 					parts := strings.Fields(paramText)
-					if len(parts) >= 2 {
-						receiverType := parts[1]
+					if len(parts) >= 1 {
+						// Handle unnamed receiver type (e.g., "integerTicks")
+						receiverType := parts[len(parts)-1]
+						// Remove any pointer symbols
 						receiverType = strings.TrimPrefix(receiverType, "*")
 						funcName = fmt.Sprintf("%s.%s", receiverType, methodName)
 						parentStruct = generateNodeID(StructNode, receiverType, filePath)
 
 						// Look for the type node to create the relationship
 						for _, node := range kg.Nodes {
-							if node.Type == "type_spec" && node.Name == receiverType {
-								typeNodeObj = node
-								break
+							if node.Type == "type_spec" {
+								if node.Name == receiverType && (node.PackageName == packageName || node.PackageName == "") {
+									typeNodeObj = node
+									break
+								}
 							}
 						}
 					}
@@ -439,6 +517,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 
 		// Create node with consistent "function" type and package info
 		funcNode = addNode(kg, "function", funcName, filePath, node.StartPoint(), node.EndPoint(), "")
+		funcNode.PackageName = currentPackage // Set package name for function node
 
 		// Update the function data in the structured graph
 		for i, n := range structuredKG.Nodes {
@@ -482,7 +561,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 		}
 
 		// Create the edge for methods
-		if typeNodeObj != nil {
+		if typeNodeObj != nil && node.Type() == "method_declaration" {
 			addEdge(kg, typeNodeObj, funcNode, "has_method")
 		}
 
@@ -547,7 +626,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 		}
 
 		// Create has_function relationship if package node exists
-		if packageNode != nil {
+		if packageNode != nil && node.Type() == "function_declaration" {
 			addEdge(kg, packageNode, funcNode, "has_function")
 		}
 
@@ -637,6 +716,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 						varNodeObj := addNode(kg, "variable",
 							fmt.Sprintf("%s %s", varName, typeStr),
 							filePath, varSpec.StartPoint(), varSpec.EndPoint(), "")
+						varNodeObj.PackageName = currentPackage // Set package name for variable node
 
 						// Extract all referenced types from the type string
 						referencedTypes := extractReferencedTypes(typeStr)
@@ -713,7 +793,55 @@ func processImports(node *sitter.Node, filePath string, content []byte, kg *Know
 		if child.Type() == "import_spec" {
 			importPath := getNodeText(child.NamedChild(0), content)
 			importPath = strings.Trim(importPath, "\"")
-			addNode(kg, "import", importPath, filePath, child.StartPoint(), child.EndPoint(), "")
+
+			// Extract package name from import path
+			packageName := importPath
+			if lastSlash := strings.LastIndex(importPath, "/"); lastSlash != -1 {
+				packageName = importPath[lastSlash+1:]
+			}
+
+			// Check if the importNode already exists in the structured knowledge graph
+			nodeExists := false
+			nodeID := generateNodeID(ImportNode, importPath, filePath)
+			for _, n := range structuredKG.Nodes {
+				if n.Type == ImportNode && n.ID == nodeID {
+					// If it exists, we don't need to create a new one
+					nodeExists = true
+					break
+				}
+			}
+			if nodeExists {
+				// If it exists, we don't need to create a new one
+				continue
+			}
+
+			// Create the import node
+			importNode := addNode(kg, "import", importPath, filePath, child.StartPoint(), child.EndPoint(), "")
+
+			// Update the ImportInfo in the structured knowledge graph
+			for i, n := range structuredKG.Nodes {
+				if n.Type == ImportNode && n.ID == nodeID {
+					if importInfo, ok := n.Data.(ImportInfo); ok {
+						importInfo.PackageName = packageName
+						structuredKG.Nodes[i].Data = importInfo
+					}
+					break
+				}
+			}
+
+			// Find the package node for this file
+			var packageNode *Node
+			for _, n := range kg.Nodes {
+				if n.Type == "package" && n.FilePath == filePath {
+					packageNode = n
+					break
+				}
+			}
+
+			// Create has_import relationship if package node exists
+			if packageNode != nil {
+				addEdge(kg, packageNode, importNode, "has_import")
+			}
 		}
 	}
 }
@@ -740,8 +868,10 @@ func processFunctionBody(node *sitter.Node, funcNode *Node, content []byte, kg *
 	}
 }
 
-// Update the addNode function to handle slice instead of map
-func addNode(kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point, parentStruct string) *Node {
+// addNode will update both the knowledge graph and the structured knowledge graph
+func addNode(
+	kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
+	parentStruct string) *Node {
 	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row)
 	if node, exists := kg.Nodes[key]; exists {
 		return node
@@ -756,6 +886,7 @@ func addNode(kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitte
 		EndLine:      endPos.Row + 1,
 		EndColumn:    endPos.Column + 1,
 		ParentStruct: parentStruct,
+		PackageName:  "", // Will be set by the caller
 	}
 	kg.Nodes[key] = node
 
@@ -779,6 +910,15 @@ func addNode(kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitte
 			Location:    location,
 		}
 		nodeID = generateNodeID(structNodeType, name, filePath)
+	case "import":
+		structNodeType = ImportNode
+		location.FilePath = ""
+		nodeData = ImportInfo{
+			ImportPath: name,
+			Location:   location,
+		}
+		// We don't need the file path for import nodes ID
+		nodeID = generateNodeID(structNodeType, name, "")
 	case "type_spec":
 		structNodeType = StructNode
 		nodeData = StructInfo{
@@ -813,7 +953,7 @@ func addNode(kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitte
 				FieldType:    parts[1],
 				ParentStruct: parentStructID,
 			}
-			nodeID = generateNodeID(structNodeType, name, filePath)
+			nodeID = generateNodeID(structNodeType, fmt.Sprintf("%s.%s", parentStruct, name), filePath)
 		}
 	case "variable":
 		parts := strings.SplitN(name, " ", 2)
