@@ -209,7 +209,7 @@ func processPackageDecl(node *sitter.Node, content []byte, filePath string, kg *
 					nameNode := child.NamedChild(0)
 					if nameNode != nil {
 						packageName := getNodeText(nameNode, content)
-						addNode(kg, "package", packageName, filePath, child.StartPoint(), child.EndPoint(), "")
+						addNode(kg, "package", packageName, filePath, child.StartPoint(), child.EndPoint(), "", packageName)
 					}
 				}
 				break // We only need the first package clause
@@ -219,6 +219,15 @@ func processPackageDecl(node *sitter.Node, content []byte, filePath string, kg *
 }
 
 func processTypes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
+	// Find the package name first
+	var packageName string
+	for _, n := range kg.Nodes {
+		if n.Type == "package" && n.FilePath == filePath {
+			packageName = n.Name
+			break
+		}
+	}
+
 	if node.Type() == "type_declaration" {
 		typeNode := node.NamedChild(0)
 		if typeNode != nil {
@@ -229,38 +238,91 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 			if typeDefNode != nil {
 				// Find the package node for this file first
 				var packageNode *Node
-				var packageName string
-				for _, n := range kg.Nodes {
-					if n.Type == "package" && n.FilePath == filePath {
-						packageNode = n
-						packageName = n.Name
-						break
-					}
+				if packageNode, exists := kg.Nodes[generateNodeID("package", packageName, filePath)]; exists {
+					packageNode = packageNode
 				}
 
 				if typeDefNode.Type() == "struct_type" {
-					// Handle struct type
-					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
+					// Store old temporary node IDs before removing them
+					oldNodeIDs := make([]string, 0)
+					for _, n := range kg.Nodes {
+						if n.Type == "type_spec" && n.Name == typeName && n.PackageName == packageName && n.FilePath != filePath {
+							oldNodeIDs = append(oldNodeIDs, generateNodeID(StructNode, typeName, n.FilePath))
+						}
+					}
 
-					if packageNode != nil {
-						addEdge(kg, packageNode, typeNodeObj, "has_struct")
+					// Remove temporary nodes as before
+					for _, n := range kg.Nodes {
+						if n.Type == "type_spec" && n.Name == typeName && n.PackageName == packageName && n.FilePath != filePath {
+							delete(kg.Nodes, fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line-1))
 
-						// Update the struct data in the structured graph with package name
-						for i, n := range structuredKG.Nodes {
-							if n.Type == StructNode && n.ID == generateNodeID(StructNode, typeName, filePath) {
-								if structData, ok := n.Data.(StructInfo); ok {
-									structData.PackageName = packageName
-									structuredKG.Nodes[i].Data = structData
+							for i := len(structuredKG.Nodes) - 1; i >= 0; i-- {
+								node := structuredKG.Nodes[i]
+								if node.Type == StructNode {
+									if structData, ok := node.Data.(StructInfo); ok {
+										if structData.StructName == typeName && structData.PackageName == packageName {
+											structuredKG.Nodes = append(structuredKG.Nodes[:i], structuredKG.Nodes[i+1:]...)
+										}
+									}
 								}
-								break
 							}
 						}
 					}
 
-					processStructFields(typeDefNode, content, filePath, kg, typeNodeObj, typeName)
+					// Create the new struct node
+					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "", packageName)
+
+					if packageNode != nil {
+						addEdge(kg, packageNode, typeNodeObj, "has_struct")
+					}
+
+					// Update has_method edges in structuredKG
+					newNodeID := generateNodeID(StructNode, typeName, filePath)
+					for i := len(structuredKG.Edges) - 1; i >= 0; i-- {
+						edge := structuredKG.Edges[i]
+						if edge.RelationType == "has_method" {
+							// Check if this edge was connected to any of the old temporary nodes
+							for _, oldID := range oldNodeIDs {
+								if edge.SourceID == oldID {
+									// Update the edge to point to the new struct node
+									structuredKG.Edges[i].SourceID = newNodeID
+									break
+								}
+							}
+						}
+					}
+
+					// Update parent_struct references in function nodes
+					for i := range structuredKG.Nodes {
+						node := &structuredKG.Nodes[i]
+						if node.Type == FunctionNode {
+							if memberFunc, ok := node.Data.(MemberFunction); ok {
+								for _, oldID := range oldNodeIDs {
+									if memberFunc.ParentStruct == oldID {
+										memberFunc.ParentStruct = newNodeID
+										node.Data = memberFunc
+										break
+									}
+								}
+							}
+						}
+					}
+
+					// Update the struct data in the structured graph
+					for i, n := range structuredKG.Nodes {
+						if n.Type == StructNode && n.ID == newNodeID {
+							if structData, ok := n.Data.(StructInfo); ok {
+								structData.PackageName = packageName
+								structuredKG.Nodes[i].Data = structData
+							}
+							break
+						}
+					}
+
+					processStructFields(typeDefNode, content, filePath, kg, typeNodeObj, typeName, packageName)
 				} else if typeDefNode.Type() == "function_type" {
 					// Handle function type
-					functionNodeObj := addNode(kg, "function", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
+					functionNodeObj := addNode(kg, "function", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "", packageName)
 
 					// Extract parameters and return types from the function type
 					paramsNode := typeDefNode.ChildByFieldName("parameters")
@@ -299,7 +361,7 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 					}
 				} else {
 					// Handle other types. e.g, enum
-					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "")
+					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "", packageName)
 					if packageNode != nil {
 						addEdge(kg, packageNode, typeNodeObj, "has_type_spec")
 					}
@@ -314,7 +376,7 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 	}
 }
 
-func processStructFields(structNode *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string) {
+func processStructFields(structNode *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string, packageName string) {
 	fieldListNode := structNode.NamedChild(0)
 	if fieldListNode != nil {
 		for i := 0; i < int(fieldListNode.NamedChildCount()); i++ {
@@ -335,16 +397,16 @@ func processStructFields(structNode *sitter.Node, content []byte, filePath strin
 					switch typeRef.Type() {
 					case "struct_type":
 						// Direct nested struct
-						processNestedStruct(fieldName, "", typeRef, content, filePath, kg, parentTypeNode, parentTypeName)
+						processNestedStruct(fieldName, "", typeRef, content, filePath, kg, parentTypeNode, parentTypeName, packageName)
 
 					case "slice_type":
 						// Array/slice of structs
 						elementType := typeRef.ChildByFieldName("element")
 						if elementType != nil && elementType.Type() == "struct_type" {
-							processNestedStruct(fieldName, "[]", elementType, content, filePath, kg, parentTypeNode, parentTypeName)
+							processNestedStruct(fieldName, "[]", elementType, content, filePath, kg, parentTypeNode, parentTypeName, packageName)
 						} else {
 							// Regular array field
-							processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName)
+							processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName, packageName)
 						}
 
 					case "map_type":
@@ -353,15 +415,15 @@ func processStructFields(structNode *sitter.Node, content []byte, filePath strin
 						if valueType != nil && valueType.Type() == "struct_type" {
 							keyType := getNodeText(typeRef.ChildByFieldName("key"), content)
 							mapPrefix := fmt.Sprintf("map[%s]", keyType)
-							processNestedStruct(fieldName, mapPrefix, valueType, content, filePath, kg, parentTypeNode, parentTypeName)
+							processNestedStruct(fieldName, mapPrefix, valueType, content, filePath, kg, parentTypeNode, parentTypeName, packageName)
 						} else {
 							// Regular map field
-							processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName)
+							processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName, packageName)
 						}
 
 					default:
 						// Regular field
-						processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName)
+						processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName, packageName)
 					}
 				}
 			}
@@ -369,7 +431,7 @@ func processStructFields(structNode *sitter.Node, content []byte, filePath strin
 	}
 }
 
-func processNestedStruct(fieldName string, typePrefix string, structNode *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string) {
+func processNestedStruct(fieldName string, typePrefix string, structNode *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string, packageName string) {
 	// Create a field node for the struct field itself
 	var fieldDesc string
 	if typePrefix == "[]" {
@@ -380,7 +442,7 @@ func processNestedStruct(fieldName string, typePrefix string, structNode *sitter
 		fieldDesc = fmt.Sprintf("%s struct", fieldName)
 	}
 
-	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, structNode.StartPoint(), structNode.EndPoint(), parentTypeName)
+	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, structNode.StartPoint(), structNode.EndPoint(), parentTypeName, packageName)
 	fieldNodeObj.ParentStruct = parentTypeName
 
 	addEdge(kg, parentTypeNode, fieldNodeObj, "has_field")
@@ -399,16 +461,16 @@ func processNestedStruct(fieldName string, typePrefix string, structNode *sitter
 
 	// Create a type node for the nested struct
 	nestedTypeName := fieldName
-	nestedTypeNode := addNode(kg, "type_spec", nestedTypeName, filePath, structNode.StartPoint(), structNode.EndPoint(), "")
+	nestedTypeNode := addNode(kg, "type_spec", nestedTypeName, filePath, structNode.StartPoint(), structNode.EndPoint(), "", packageName)
 
 	// Process the nested struct's fields
-	processStructFields(structNode, content, filePath, kg, nestedTypeNode, nestedTypeName)
+	processStructFields(structNode, content, filePath, kg, nestedTypeNode, nestedTypeName, packageName)
 }
 
-func processRegularField(fieldName string, typeRef *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string) {
+func processRegularField(fieldName string, typeRef *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string, packageName string) {
 	fieldType := getNodeText(typeRef, content)
 	fieldDesc := fmt.Sprintf("%s %s", fieldName, fieldType)
-	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, typeRef.StartPoint(), typeRef.EndPoint(), parentTypeName)
+	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, typeRef.StartPoint(), typeRef.EndPoint(), parentTypeName, packageName)
 	fieldNodeObj.ParentStruct = parentTypeName
 
 	// Create has_field relationship
@@ -428,11 +490,11 @@ func processRegularField(fieldName string, typeRef *sitter.Node, content []byte,
 }
 
 func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph) {
-	// Find the package name for this file first
-	var currentPackage string
+	// Find the package name first
+	var packageName string
 	for _, n := range kg.Nodes {
 		if n.Type == "package" && n.FilePath == filePath {
-			currentPackage = n.Name
+			packageName = n.Name
 			break
 		}
 	}
@@ -444,33 +506,22 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 			child := node.NamedChild(i)
 			if child.Type() == "package_clause" {
 				packageName := getNodeText(child.NamedChild(0), content)
-				pkgNode := addNode(kg, "package", packageName, filePath, child.StartPoint(), child.EndPoint(), "")
+				pkgNode := addNode(kg, "package", packageName, filePath, child.StartPoint(), child.EndPoint(), "", packageName)
 				pkgNode.PackageName = packageName // Set package name for package node
 			} else if child.Type() == "import_declaration" {
-				processImports(child, filePath, content, kg)
+				processImports(child, filePath, content, kg, packageName)
 			}
 		}
 
 	case "function_declaration", "method_declaration":
 		var funcName string
 		var funcNode *Node
-		var typeNodeObj *Node // For method relationships
-		var packageName string
+		var typeNodeObj *Node
+		var parentStruct string
 		var inputParams string
 		var returnParams string
-		var parentStruct string
-
-		// Find the package node for this file first
-		for _, n := range kg.Nodes {
-			if n.Type == "package" && n.FilePath == filePath {
-				packageName = n.Name
-				break
-			}
-		}
-		fmt.Printf("Found package name: %s\n", packageName)
 
 		if node.Type() == "method_declaration" {
-			// Handle method name with receiver
 			methodName := getNodeText(node.ChildByFieldName("name"), content)
 			receiverNode := node.ChildByFieldName("receiver")
 			if receiverNode != nil {
@@ -479,45 +530,62 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 					paramText := getNodeText(paramDecl, content)
 					parts := strings.Fields(paramText)
 					if len(parts) >= 1 {
-						// Handle unnamed receiver type (e.g., "integerTicks")
 						receiverType := parts[len(parts)-1]
-						// Remove any pointer symbols
 						receiverType = strings.TrimPrefix(receiverType, "*")
 						funcName = fmt.Sprintf("%s.%s", receiverType, methodName)
-						parentStruct = generateNodeID(StructNode, receiverType, filePath)
 
-						// Look for the type node to create the relationship
+						// Look for the actual struct definition file
+						var structFilePath string
 						for _, node := range kg.Nodes {
-							if node.Type == "type_spec" {
-								if node.Name == receiverType && (node.PackageName == packageName || node.PackageName == "") {
+							if node.Type == "type_spec" && node.Name == receiverType {
+								// Check if the node is in the same package
+								if node.PackageName == packageName || node.PackageName == "" {
+									structFilePath = node.FilePath
 									typeNodeObj = node
 									break
 								}
+							}
+						}
+
+						// Use the correct file path for parent_struct ID
+						if structFilePath != "" {
+							parentStruct = generateNodeID(StructNode, receiverType, structFilePath)
+						} else {
+							// Fallback to current file if struct not found
+							parentStruct = generateNodeID(StructNode, receiverType, filePath)
+						}
+
+						// If type node wasn't found in the current package, create a temporary one
+						if typeNodeObj == nil {
+							typeNodeObj = addNode(kg, "type_spec", receiverType, filePath, node.StartPoint(), node.EndPoint(), "", packageName)
+						}
+
+						// Update parent_struct for existing function nodes with the same name
+						for _, n := range kg.Nodes {
+							if n.Type == "function" && n.Name == funcName && n.PackageName == packageName {
+								n.ParentStruct = parentStruct
 							}
 						}
 					}
 				}
 			}
 		} else {
-			// Handle regular function name
 			funcName = getNodeText(node.ChildByFieldName("name"), content)
 		}
 
-		// Extract parameters
+		// Extract parameters and return type
 		paramsNode := node.ChildByFieldName("parameters")
 		if paramsNode != nil {
 			inputParams = getNodeText(paramsNode, content)
 		}
 
-		// Extract return type
 		resultNode := node.ChildByFieldName("result")
 		if resultNode != nil {
 			returnParams = getNodeText(resultNode, content)
 		}
 
-		// Create node with consistent "function" type and package info
-		funcNode = addNode(kg, "function", funcName, filePath, node.StartPoint(), node.EndPoint(), "")
-		funcNode.PackageName = currentPackage // Set package name for function node
+		// Create function node
+		funcNode = addNode(kg, "function", funcName, filePath, node.StartPoint(), node.EndPoint(), parentStruct, packageName)
 
 		// Update the function data in the structured graph
 		for i, n := range structuredKG.Nodes {
@@ -661,7 +729,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 										constName := getNodeText(identNode, content)
 										if typeName != "" {
 											// Create a node for the enum value
-											enumValueNode := addNode(kg, "enum_value", constName, filePath, identNode.StartPoint(), identNode.EndPoint(), "")
+											enumValueNode := addNode(kg, "enum_value", constName, filePath, identNode.StartPoint(), identNode.EndPoint(), "", packageName)
 
 											// Look for the type node
 											for _, node := range kg.Nodes {
@@ -715,8 +783,8 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 						// Create the variable node
 						varNodeObj := addNode(kg, "variable",
 							fmt.Sprintf("%s %s", varName, typeStr),
-							filePath, varSpec.StartPoint(), varSpec.EndPoint(), "")
-						varNodeObj.PackageName = currentPackage // Set package name for variable node
+							filePath, varSpec.StartPoint(), varSpec.EndPoint(), "", packageName)
+						varNodeObj.PackageName = packageName // Set package name for variable node
 
 						// Extract all referenced types from the type string
 						referencedTypes := extractReferencedTypes(typeStr)
@@ -787,18 +855,12 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 	}
 }
 
-func processImports(node *sitter.Node, filePath string, content []byte, kg *KnowledgeGraph) {
+func processImports(node *sitter.Node, filePath string, content []byte, kg *KnowledgeGraph, packageName string) {
 	for i := 0; i < int(node.NamedChildCount()); i++ {
 		child := node.NamedChild(i)
 		if child.Type() == "import_spec" {
 			importPath := getNodeText(child.NamedChild(0), content)
 			importPath = strings.Trim(importPath, "\"")
-
-			// Extract package name from import path
-			packageName := importPath
-			if lastSlash := strings.LastIndex(importPath, "/"); lastSlash != -1 {
-				packageName = importPath[lastSlash+1:]
-			}
 
 			// Check if the importNode already exists in the structured knowledge graph
 			nodeExists := false
@@ -816,7 +878,7 @@ func processImports(node *sitter.Node, filePath string, content []byte, kg *Know
 			}
 
 			// Create the import node
-			importNode := addNode(kg, "import", importPath, filePath, child.StartPoint(), child.EndPoint(), "")
+			importNode := addNode(kg, "import", importPath, filePath, child.StartPoint(), child.EndPoint(), "", packageName)
 
 			// Update the ImportInfo in the structured knowledge graph
 			for i, n := range structuredKG.Nodes {
@@ -857,7 +919,7 @@ func processFunctionBody(node *sitter.Node, funcNode *Node, content []byte, kg *
 				functionName := getNodeText(callNode.ChildByFieldName("function"), content)
 
 				// Add edge representing function call
-				calledFunc := addNode(kg, "function_call", functionName, funcNode.FilePath, callNode.StartPoint(), callNode.EndPoint(), "")
+				calledFunc := addNode(kg, "function_call", functionName, funcNode.FilePath, callNode.StartPoint(), callNode.EndPoint(), "", "")
 				addEdge(kg, funcNode, calledFunc, "calls")
 			}
 
@@ -871,7 +933,7 @@ func processFunctionBody(node *sitter.Node, funcNode *Node, content []byte, kg *
 // addNode will update both the knowledge graph and the structured knowledge graph
 func addNode(
 	kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
-	parentStruct string) *Node {
+	parentStruct string, packageName string) *Node {
 	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row)
 	if node, exists := kg.Nodes[key]; exists {
 		return node
@@ -886,7 +948,7 @@ func addNode(
 		EndLine:      endPos.Row + 1,
 		EndColumn:    endPos.Column + 1,
 		ParentStruct: parentStruct,
-		PackageName:  "", // Will be set by the caller
+		PackageName:  packageName,
 	}
 	kg.Nodes[key] = node
 
@@ -922,7 +984,7 @@ func addNode(
 	case "type_spec":
 		structNodeType = StructNode
 		nodeData = StructInfo{
-			PackageName: "", // Will be filled when processing package relationship
+			PackageName: packageName,
 			StructName:  name,
 			Fields:      make([]string, 0),
 			Location:    location,
@@ -931,7 +993,7 @@ func addNode(
 	case "function":
 		structNodeType = FunctionNode
 		nodeData = Function{
-			PackageName:  "", // Will be filled when processing package relationship
+			PackageName:  packageName,
 			FunctionName: name,
 			InputParams:  "",
 			ReturnParams: "",
