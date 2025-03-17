@@ -96,6 +96,21 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 			}
 		}
 	}
+	// JSON dump of nodeMap
+	jsonData, err := json.MarshalIndent(nodeMap, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling nodeMap: %v\n", err)
+		os.Exit(1)
+	}
+	os.WriteFile("nodeMap.json", jsonData, 0644)
+
+	// JSON dump of packageNodes
+	jsonData, err = json.MarshalIndent(packageNodes, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling packageNodes: %v\n", err)
+		os.Exit(1)
+	}
+	os.WriteFile("packageNodes.json", jsonData, 0644)
 
 	// Process edges to collect enum values
 	for _, edge := range kg.Edges {
@@ -162,7 +177,7 @@ func GenerateDOT(kg *StructuredKnowledgeGraph) string {
 	}
 
 	// JSON dump of packageStructMethodMap
-	jsonData, err := json.MarshalIndent(packageStructMethodMap, "", "  ")
+	jsonData, err = json.MarshalIndent(packageStructMethodMap, "", "  ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling packageStructMethodMap: %v\n", err)
 		os.Exit(1)
@@ -318,7 +333,9 @@ func processStructsAndEnums(
 			// Process fields
 			if fields, ok := data["fields"].([]interface{}); ok {
 				for _, fieldID := range fields {
-					if fieldNode, exists := nodeMap[fmt.Sprintf("%v", fieldID)]; exists {
+					fieldIDParts := strings.SplitN(fmt.Sprintf("%v", fieldID), ":", 2)
+					fieldFullID := fmt.Sprintf("%s:%s.%s", fieldIDParts[0], structName, fieldIDParts[1])
+					if fieldNode, exists := nodeMap[fieldFullID]; exists {
 						if fieldData, ok := fieldNode.Data.(map[string]interface{}); ok {
 							fieldName := fmt.Sprintf("%v", fieldData["field_name"])
 							fieldType := fmt.Sprintf("%v", fieldData["field_type"])
