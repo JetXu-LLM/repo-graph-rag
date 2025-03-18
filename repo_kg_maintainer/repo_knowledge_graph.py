@@ -475,6 +475,8 @@ class RepoKnowledgeGraph:
                         relation.relation_type.value,
                         metadata
                     )
+
+                    self.logger.info(f"Creating entity relationship {relation.relation_type.value}: {source_key} -> {target_key}")
                     
                     total_relations += 1
                     
