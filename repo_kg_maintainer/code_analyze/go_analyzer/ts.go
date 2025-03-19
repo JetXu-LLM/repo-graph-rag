@@ -396,6 +396,23 @@ func processTypes(node *sitter.Node, content []byte, filePath string, kg *Knowle
 						}
 					}
 				} else {
+					// Remove temporary nodes as before
+					for _, n := range kg.Nodes {
+						if n.Type == "type_spec" && n.Name == typeName && n.PackageName == packageName && n.FilePath != filePath {
+							delete(kg.Nodes, fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line-1))
+
+							for i := len(structuredKG.Nodes) - 1; i >= 0; i-- {
+								node := structuredKG.Nodes[i]
+								if node.Type == StructNode {
+									if structData, ok := node.Data.(StructInfo); ok {
+										if structData.StructName == typeName && structData.PackageName == packageName {
+											structuredKG.Nodes = append(structuredKG.Nodes[:i], structuredKG.Nodes[i+1:]...)
+										}
+									}
+								}
+							}
+						}
+					}
 					// Handle other types. e.g, enum
 					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "", packageName)
 					if packageNode != nil {
@@ -847,8 +864,9 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 
 			// Find the existing type node
 			for _, n := range kg.Nodes {
-				if n.Type == "type_spec" && n.Name == typeName {
+				if n.Type == "type_spec" && strings.TrimPrefix(n.Name, "[temporary]") == typeName {
 					typeNodeObj = n
+					typeNodeObj.Name = typeName
 					break
 				}
 			}

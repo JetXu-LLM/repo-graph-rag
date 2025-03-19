@@ -155,7 +155,7 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 
 		// Generate files record with <f> fields and get file number mapping
 		// fileNumMap is a map tracking file_path -> int. File paths are sorted alphabetically
-		fileNumMap := generateFilesRecordWithFields(&sb, pkgName, nodes)
+		fileNumMap, filePartMap := generateFilesRecordWithFields(&sb, pkgName, nodes)
 
 		// Generate globals record
 		generateGlobalsRecord(&sb, pkgName, nodes)
@@ -179,10 +179,10 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 		processPackageRelationships(&sb, kg, nodes, nodeMap)
 
 		// Generate "has" relationships between files and functions
-		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, numParts, partMap)
+		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, numParts, partMap, filePartMap)
 
 		// Generate "has" relationships between files and structs
-		generateHasRelationships(&sb, pkgName, fileToStructs, fileNumMap)
+		generateHasRelationships(&sb, pkgName, fileToStructs, fileNumMap, filePartMap)
 
 		sb.WriteString("  }\n\n")
 	}
@@ -259,9 +259,10 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 	return sb.String()
 }
 
-func generateFilesRecordWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) map[string]int {
+func generateFilesRecordWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) (map[string]int, map[int]int) {
 	files := make(map[string]bool)
-	fileNumMap := make(map[string]int) // Map to track file numbers
+	fileNumMap := make(map[string]int) // Map to track file_path -> file_number
+	filePartMap := make(map[int]int)   // Map to track file_number -> part_number
 
 	for _, node := range nodes {
 		if data, ok := node.Data.(map[string]interface{}); ok {
@@ -273,24 +274,55 @@ func generateFilesRecordWithFields(sb *strings.Builder, pkgName string, nodes []
 		}
 	}
 
-	if len(files) > 0 {
-		sb.WriteString(fmt.Sprintf("    %s_files [label=\"{Files", sanitizeID(pkgName)))
-		fileNum := 0
-		// Sort files for consistent numbering
-		sortedFiles := make([]string, 0, len(files))
-		for file := range files {
-			sortedFiles = append(sortedFiles, file)
-		}
-		sort.Strings(sortedFiles)
-
-		for _, file := range sortedFiles {
-			fileNum++
-			fileNumMap[file] = fileNum
-			sb.WriteString(fmt.Sprintf("|<f%d> %s", fileNum, file))
-		}
-		sb.WriteString("}\"];\n\n")
+	if len(files) == 0 {
+		return fileNumMap, filePartMap
 	}
-	return fileNumMap
+
+	const maxLabelLength = 16000 // Keep some buffer below 16384
+	var currentLength int
+	var currentPart int
+	var fileNum int
+
+	// Sort files for consistent numbering
+	sortedFiles := make([]string, 0, len(files))
+	for file := range files {
+		sortedFiles = append(sortedFiles, file)
+	}
+	sort.Strings(sortedFiles)
+
+	// Start first part
+	currentPart++
+	sb.WriteString(fmt.Sprintf("    %s_files_part%d [label=\"{Files part%d",
+		sanitizeID(pkgName), currentPart, currentPart))
+	currentLength = len("Files")
+
+	for _, file := range sortedFiles {
+		entryLength := len(fmt.Sprintf("|<f%d> %s", fileNum+1, file))
+
+		if currentLength+entryLength > maxLabelLength {
+			sb.WriteString("}\"];\n\n")
+			currentPart++
+			sb.WriteString(fmt.Sprintf("    %s_files_part%d [label=\"{Files part%d",
+				sanitizeID(pkgName), currentPart, currentPart))
+			currentLength = len("Files")
+		}
+
+		fileNum++
+		fileNumMap[file] = fileNum
+		filePartMap[fileNum] = currentPart // Store which part this file belongs to
+		sb.WriteString(fmt.Sprintf("|<f%d> %s", fileNum, file))
+		currentLength += entryLength
+	}
+	sb.WriteString("}\"];\n\n")
+
+	// Add invisible edges between parts
+	for i := 1; i < currentPart; i++ {
+		sb.WriteString(fmt.Sprintf("    %s_files_part%d -> %s_files_part%d [style=invis];\n",
+			sanitizeID(pkgName), i, sanitizeID(pkgName), i+1))
+	}
+	sb.WriteString("\n")
+
+	return fileNumMap, filePartMap
 }
 
 func generateGlobalsRecord(sb *strings.Builder, pkgName string, nodes []GraphNode) {
@@ -506,19 +538,22 @@ func processPackageRelationships(sb *strings.Builder, kg *StructuredKnowledgeGra
 	}
 }
 
-func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, numParts int, partMap map[int]int) {
-	// Generate relationships using the part mapping from processGlobalFunctionsWithFields
+func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, numParts int, partMap map[int]int, filePartMap map[int]int) {
+	// Generate relationships using both part mappings
 	for file, funcs := range fileToFuncs {
 		if fileNum, exists := fileNumMap[file]; exists {
-			for _, fn := range funcs {
-				if funcNum, exists := funcNumMap[fn]; exists {
-					if partNum, exists := partMap[funcNum]; exists {
-						sb.WriteString(fmt.Sprintf("    %s_files:f%d -> %s_functions_part%d:fn%d [label=\"has\"];\n",
-							sanitizeID(pkgName),
-							fileNum,
-							sanitizeID(pkgName),
-							partNum,
-							funcNum))
+			if filePart, exists := filePartMap[fileNum]; exists {
+				for _, fn := range funcs {
+					if funcNum, exists := funcNumMap[fn]; exists {
+						if partNum, exists := partMap[funcNum]; exists {
+							sb.WriteString(fmt.Sprintf("    %s_files_part%d:f%d -> %s_functions_part%d:fn%d [label=\"has\"];\n",
+								sanitizeID(pkgName),
+								filePart,
+								fileNum,
+								sanitizeID(pkgName),
+								partNum,
+								funcNum))
+						}
 					}
 				}
 			}
@@ -527,17 +562,19 @@ func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFu
 	sb.WriteString("\n")
 }
 
-func generateHasRelationships(sb *strings.Builder, pkgName string, fileToStructs map[string][]string, fileNumMap map[string]int) {
-	// Generate relationships
+func generateHasRelationships(sb *strings.Builder, pkgName string, fileToStructs map[string][]string, fileNumMap map[string]int, filePartMap map[int]int) {
+	// Generate relationships using the file part mapping
 	for file, structs := range fileToStructs {
 		if fileNum, exists := fileNumMap[file]; exists {
-			for _, structName := range structs {
-				// Use package_StructName for the node reference
-				sb.WriteString(fmt.Sprintf("    %s_files:f%d -> %s_%s [label=\"has\"];\n",
-					sanitizeID(pkgName),
-					fileNum,
-					sanitizeID(pkgName),
-					sanitizeID(structName)))
+			if filePart, exists := filePartMap[fileNum]; exists {
+				for _, structName := range structs {
+					sb.WriteString(fmt.Sprintf("    %s_files_part%d:f%d -> %s_%s [label=\"has\"];\n",
+						sanitizeID(pkgName),
+						filePart,
+						fileNum,
+						sanitizeID(pkgName),
+						sanitizeID(structName)))
+				}
 			}
 		}
 	}
