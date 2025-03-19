@@ -162,6 +162,7 @@ func main() {
 	}
 
 	// Add the call graph to the knowledge graph
+	existingCallEdges := mapset.NewSet[string]()
 	for _, relationship := range relationships {
 		callerID, exists := findNodeID(nodeIds, relationship.CallerFilePath, relationship.Caller)
 		if !exists {
@@ -173,6 +174,11 @@ func main() {
 			fmt.Printf("Callee node not found: [function:%s:%s]\n", relationship.Callee, relationship.CalleeFilePath)
 			continue
 		}
+
+		// If this edge is already in the knowledge graph, skip it
+		if existingCallEdges.Contains(fmt.Sprintf("%s:%s", callerID, calleeID)) {
+			continue
+		}
 		structuredKG.Edges = append(structuredKG.Edges, GraphEdge{
 			SourceType:   "function",
 			SourceID:     callerID,
@@ -180,6 +186,7 @@ func main() {
 			TargetID:     calleeID,
 			RelationType: Calls,
 		})
+		existingCallEdges.Add(fmt.Sprintf("%s:%s", callerID, calleeID))
 	}
 	// Save the structuredKG (which is a StructuredKnowledgeGraph) in knowledge_graph.json file
 	if err := saveKnowledgeGraph(); err != nil {

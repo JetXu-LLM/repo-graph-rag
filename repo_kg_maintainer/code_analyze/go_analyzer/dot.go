@@ -167,19 +167,19 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 
 		// Process global functions with <fn> fields and get function number mapping
 		// funcNumMap is a map[string]int tracking global function_name -> int
-		// numParts is a int tracking the number of parts in the global functions record
+		// numParts is an int tracking the number of parts in the global functions record
 		// partMap is a map[int]int tracking function_number -> part_number
-		funcNumMap, numParts, partMap := processGlobalFunctionsWithFields(&sb, pkgName, nodes)
+		funcNumMap, partMap := processGlobalFunctionsWithFields(&sb, pkgName, nodes)
 		packageFunctionMap[pkgName] = make(map[string]string)
 		for funcName, funcNum := range funcNumMap {
-			packageFunctionMap[pkgName][funcName] = fmt.Sprintf("%d:%d", numParts, funcNum)
+			packageFunctionMap[pkgName][funcName] = fmt.Sprintf("%d:%d", partMap[funcNum], funcNum)
 		}
 
 		// Process relationships within package
 		processPackageRelationships(&sb, kg, nodes, nodeMap)
 
 		// Generate "has" relationships between files and functions
-		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, numParts, partMap, filePartMap)
+		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, partMap, filePartMap)
 
 		// Generate "has" relationships between files and structs
 		generateHasRelationships(&sb, pkgName, fileToStructs, fileNumMap, filePartMap)
@@ -187,7 +187,7 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 		sb.WriteString("  }\n\n")
 	}
 
-	// JSON dump of packageStructMethodMap
+	// JSON dump of packageStructMethodMap and packageFunctionMap
 	if debug {
 		jsonData, err := json.MarshalIndent(packageStructMethodMap, "", "  ")
 		if err != nil {
@@ -195,6 +195,12 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 			os.Exit(1)
 		}
 		os.WriteFile("packageStructMethodMap.debug.json", jsonData, 0644)
+		jsonData, err = json.MarshalIndent(packageFunctionMap, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling packageFunctionMap: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("packageFunctionMap.debug.json", jsonData, 0644)
 	}
 
 	// Generate "calls" relationships between functions and functions
@@ -435,7 +441,7 @@ func sanitizeParams(params string) string {
 	return params
 }
 
-func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) (map[string]int, int, map[int]int) {
+func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes []GraphNode) (map[string]int, map[int]int) {
 	funcs := filterNodesByType(nodes, FunctionNode)
 	globalFuncs := make([]GraphNode, 0)
 	funcNumMap := make(map[string]int)
@@ -451,7 +457,7 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 	}
 
 	if len(globalFuncs) == 0 {
-		return funcNumMap, 0, nil
+		return funcNumMap, nil
 	}
 
 	const maxLabelLength = 16000 // Keep some buffer below 16384
@@ -505,7 +511,7 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 	sb.WriteString("\n")
 
 	// Store the part mapping in a global variable or pass it through the return value
-	return funcNumMap, currentPart, partMap
+	return funcNumMap, partMap
 }
 
 func processPackageRelationships(sb *strings.Builder, kg *StructuredKnowledgeGraph, nodes []GraphNode, nodeMap map[string]GraphNode) {
@@ -538,7 +544,7 @@ func processPackageRelationships(sb *strings.Builder, kg *StructuredKnowledgeGra
 	}
 }
 
-func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, numParts int, partMap map[int]int, filePartMap map[int]int) {
+func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, partMap map[int]int, filePartMap map[int]int) {
 	// Generate relationships using both part mappings
 	for file, funcs := range fileToFuncs {
 		if fileNum, exists := fileNumMap[file]; exists {
