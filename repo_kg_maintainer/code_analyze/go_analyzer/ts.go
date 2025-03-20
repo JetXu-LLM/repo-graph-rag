@@ -123,7 +123,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Walk through all Go files in the project
+	// Walk through all Go files in the project. For each file we has 3 loops.
 	err := filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -142,6 +142,14 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error walking project: %v\n", err)
 		os.Exit(1)
+	}
+	if debug {
+		// Dump kg to a json file
+		kgJSON, err := json.MarshalIndent(kg, "", "  ")
+		if err != nil {
+			fmt.Printf("Error marshalling knowledge graph: %v\n", err)
+		}
+		os.WriteFile("kg.json", kgJSON, 0644)
 	}
 
 	// Print the knowledge graph in std
@@ -871,7 +879,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 
 			// Find the existing type node
 			for _, n := range kg.Nodes {
-				if n.Type == "type_spec" && strings.TrimPrefix(n.Name, "[temporary]") == typeName {
+				if n.Type == "type_spec" && n.Name == typeName {
 					typeNodeObj = n
 					typeNodeObj.Name = typeName
 					break
@@ -899,6 +907,26 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 										if node.Type == "type_spec" && node.Name == embeddedTypeName {
 											addEdge(kg, typeNodeObj, node, "extends")
 											break
+										}
+									}
+								} else {
+									// Build reference relationships for the field
+									typeName := getNodeText(typeRef, content)
+									referencedTypes := extractReferencedTypes(typeName)
+									for _, refType := range referencedTypes {
+										for _, node := range kg.Nodes {
+											if node.Type == "type_spec" && node.Name == refType {
+												// Build "references" relationships for the field node to struct node
+												fieldType := getNodeText(typeRef, content)
+												fieldName := getNodeText(nameNode, content)
+												fieldDesc := fmt.Sprintf("%s %s", fieldName, fieldType)
+												fieldNodeKey := fmt.Sprintf("%s:%s:%s:%d", FieldNode, fieldDesc, filePath, typeRef.StartPoint().Row+1)
+												fmt.Printf("fieldNodeKey: %s for %s\n", fieldNodeKey, refType)
+												if n, exists := kg.Nodes[fieldNodeKey]; exists {
+													fmt.Printf("Found field node: %s\n", fieldNodeKey)
+													addEdge(kg, n, node, "references")
+												}
+											}
 										}
 									}
 								}
@@ -995,7 +1023,7 @@ func processFunctionBody(node *sitter.Node, funcNode *Node, content []byte, kg *
 func addNode(
 	kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
 	parentStruct string, packageName string) *Node {
-	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row)
+	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row+1)
 	if node, exists := kg.Nodes[key]; exists {
 		return node
 	}
