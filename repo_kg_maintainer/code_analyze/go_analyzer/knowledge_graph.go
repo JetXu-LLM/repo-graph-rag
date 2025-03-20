@@ -8,9 +8,10 @@ type CodeLocation struct {
 }
 
 type Variable struct {
-	VarName  string       `json:"var_name,omitempty"`
-	VarType  string       `json:"var_type"`
-	Location CodeLocation `json:"location"`
+	PackageName string       `json:"package_name"`
+	VarName     string       `json:"var_name,omitempty"`
+	VarType     string       `json:"var_type"`
+	Location    CodeLocation `json:"location"`
 }
 
 type Function struct {
@@ -22,6 +23,7 @@ type Function struct {
 }
 
 type FieldInfo struct {
+	PackageName  string `json:"package_name"`
 	FieldName    string `json:"field_name"`
 	FieldType    string `json:"field_type"`
 	ParentStruct string `json:"parent_struct"` // Parent struct id

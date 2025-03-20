@@ -503,11 +503,11 @@ func processNestedStruct(fieldName string, typePrefix string, structNode *sitter
 	// Create a field node for the struct field itself
 	var fieldDesc string
 	if typePrefix == "[]" {
-		fieldDesc = fmt.Sprintf("%s []struct", fieldName)
+		fieldDesc = fmt.Sprintf("%s.%s []struct", parentTypeName, fieldName)
 	} else if typePrefix != "" {
-		fieldDesc = fmt.Sprintf("%s %sstruct", fieldName, typePrefix)
+		fieldDesc = fmt.Sprintf("%s.%s %sstruct", parentTypeName, fieldName, typePrefix)
 	} else {
-		fieldDesc = fmt.Sprintf("%s struct", fieldName)
+		fieldDesc = fmt.Sprintf("%s.%s struct", parentTypeName, fieldName)
 	}
 
 	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, structNode.StartPoint(), structNode.EndPoint(), parentTypeName, packageName)
@@ -537,7 +537,7 @@ func processNestedStruct(fieldName string, typePrefix string, structNode *sitter
 
 func processRegularField(fieldName string, typeRef *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string, packageName string) {
 	fieldType := getNodeText(typeRef, content)
-	fieldDesc := fmt.Sprintf("%s %s", fieldName, fieldType)
+	fieldDesc := fmt.Sprintf("%s.%s %s", parentTypeName, fieldName, fieldType)
 	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, typeRef.StartPoint(), typeRef.EndPoint(), parentTypeName, packageName)
 	fieldNodeObj.ParentStruct = parentTypeName
 
@@ -919,7 +919,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 												// Build "references" relationships for the field node to struct node
 												fieldType := getNodeText(typeRef, content)
 												fieldName := getNodeText(nameNode, content)
-												fieldDesc := fmt.Sprintf("%s %s", fieldName, fieldType)
+												fieldDesc := fmt.Sprintf("%s.%s %s", typeNodeObj.Name, fieldName, fieldType)
 												fieldNodeKey := fmt.Sprintf("%s:%s:%s:%d", FieldNode, fieldDesc, filePath, typeRef.StartPoint().Row+1)
 												fmt.Printf("fieldNodeKey: %s for %s\n", fieldNodeKey, refType)
 												if n, exists := kg.Nodes[fieldNodeKey]; exists {
@@ -1100,20 +1100,22 @@ func addNode(
 
 			structNodeType = FieldNode
 			nodeData = FieldInfo{
+				PackageName:  packageName,
 				FieldName:    parts[0],
 				FieldType:    parts[1],
 				ParentStruct: parentStructID,
 			}
-			nodeID = generateNodeID(structNodeType, fmt.Sprintf("%s.%s", parentStruct, name), filePath)
+			nodeID = generateNodeID(structNodeType, name, filePath)
 		}
 	case "variable":
 		parts := strings.SplitN(name, " ", 2)
 		if len(parts) == 2 {
 			structNodeType = VariableNode
 			nodeData = Variable{
-				VarName:  parts[0],
-				VarType:  parts[1],
-				Location: location,
+				PackageName: packageName,
+				VarName:     parts[0],
+				VarType:     parts[1],
+				Location:    location,
 			}
 			nodeID = generateNodeID(structNodeType, name, filePath)
 		}
