@@ -202,9 +202,6 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 		varNumMap := processVariables(&sb, pkgName, nodes)
 		packageVarMap[pkgName] = varNumMap
 
-		// Process relationships within package
-		// processPackageRelationships(&sb, kg, nodes, nodeMap, fieldNumMap, pkgName)
-
 		// Generate "has" relationships between files and functions
 		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, partMap, filePartMap)
 
@@ -571,66 +568,9 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 	return funcNumMap, partMap
 }
 
-func processPackageRelationships(
-	sb *strings.Builder, kg *StructuredKnowledgeGraph, nodes []GraphNode,
-	nodeMap map[string]GraphNode, fieldNumMap map[string]map[string]int, pkgName string) {
-	nodeIDs := make(map[string]bool)
-	for _, node := range nodes {
-		nodeIDs[node.ID] = true
-	}
-
-	for _, edge := range kg.Edges {
-		// Skip edges that are not in the current package
-		if getPackageName(nodeMap[edge.SourceID]) != pkgName {
-			continue
-		}
-
-		if edge.RelationType == Extends {
-			if nodeIDs[edge.SourceID] && nodeIDs[edge.TargetID] {
-				sourceNode := nodeMap[edge.SourceID]
-				targetNode := nodeMap[edge.TargetID]
-
-				sourceLabel := getNodeLabel(sourceNode)
-				targetLabel := getNodeLabel(targetNode)
-
-				// Get package names for both source and target
-				sourcePkg := getPackageName(sourceNode)
-				targetPkg := getPackageName(targetNode)
-
-				sb.WriteString(fmt.Sprintf("    %s_%s -> %s_%s [label=\"%s\"];\n",
-					sanitizeID(sourcePkg),
-					sanitizeID(sourceLabel),
-					sanitizeID(targetPkg),
-					sanitizeID(targetLabel),
-					edge.RelationType))
-			}
-		} else if edge.RelationType == References {
-			sourceNode, foundSourceID := nodeMap[edge.SourceID]
-			targetNode, foundTargetID := nodeMap[edge.TargetID]
-			if foundSourceID && foundTargetID && sourceNode.Type == FieldNode {
-				// TODO: Deal with FieldNode for now. Later we will deal with VariableNode
-				sourceLabel := getNodeLabel(sourceNode) // sourceLabel is struct_name.field_name
-				targetLabel := getNodeLabel(targetNode)
-
-				// Get package names for both source and target
-				sourcePkg := getPackageName(sourceNode)
-				targetPkg := getPackageName(targetNode)
-
-				structName := strings.Split(sourceLabel, ".")[0]
-				fieldNum := fieldNumMap[structName][sourceLabel]
-				sb.WriteString(fmt.Sprintf("    %s_%s:fd%d -> %s_%s [label=\"%s\"];\n",
-					sanitizeID(sourcePkg),
-					sanitizeID(structName),
-					fieldNum,
-					sanitizeID(targetPkg),
-					sanitizeID(targetLabel),
-					edge.RelationType))
-			}
-		}
-	}
-}
-
-func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, partMap map[int]int, filePartMap map[int]int) {
+func generateContainsRelationships(
+	sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int,
+	fileNumMap map[string]int, partMap map[int]int, filePartMap map[int]int) {
 	// Generate relationships using both part mappings
 	for file, funcs := range fileToFuncs {
 		if fileNum, exists := fileNumMap[file]; exists {

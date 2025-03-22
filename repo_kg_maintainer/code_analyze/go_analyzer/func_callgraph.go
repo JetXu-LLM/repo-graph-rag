@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -513,9 +514,13 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 										if !info.IsDir() && strings.HasSuffix(p, ".go") {
 											// Check if this file contains the callee
 											content, err := os.ReadFile(p)
-											if err == nil && strings.Contains(string(content), strings.TrimPrefix(callee, pkg+".")) {
-												calleeFilePath = p
-												return filepath.SkipAll
+											if err == nil {
+												// Look for function declaration pattern: "func" followed by optional receiver, function name, and opening parenthesis
+												funcPattern := `func\s+(?:\([^)]+\)\s+)?` + regexp.QuoteMeta(strings.TrimPrefix(callee, pkg+".")) + `\(`
+												matched, regexErr := regexp.Match(funcPattern, content)
+												if regexErr == nil && matched {
+													calleeFilePath = p
+												}
 											}
 										}
 										return nil

@@ -162,6 +162,14 @@ func main() {
 		fmt.Printf("Error generating call graph: %v\n", err)
 		os.Exit(1)
 	}
+	if debug {
+		jsonData, err := json.MarshalIndent(relationships, "", "  ")
+		if err != nil {
+			fmt.Printf("Error marshalling call graph: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("callGraph.debug.json", jsonData, 0644)
+	}
 
 	// Add all node IDs to a set
 	nodeIds := mapset.NewSet[string]()
