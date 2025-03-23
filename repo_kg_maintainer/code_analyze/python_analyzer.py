@@ -45,9 +45,44 @@ class PythonAnalyzer:
     def parser_code(self, content: str) -> Tree:
         """
         Parse the given content using the tree-sitter parser.
-        Returns a tuple containing the FileInfo and a list of EntityInfo objects.
+        Handles non-ASCII characters by replacing them with ASCII placeholders
+        to ensure proper parsing without affecting code structure.
+        
+        Args:
+            content (str): Source code to parse
+            
+        Returns:
+            Tree: The tree-sitter parse tree
         """
-        return self.parser.parse(content.encode("utf-8", errors="ignore"))
+        # Skip processing if content is empty
+        if not content:
+            return self.parser.parse(content.encode("utf-8", errors="ignore"))
+        
+        # Replace non-ASCII characters with appropriate placeholders
+        processed_content = ""
+        for c in content:
+            if ord(c) < 128:
+                # ASCII character - keep as is
+                processed_content += c
+            else:
+                # Non-ASCII character - replace based on character type
+                if c.isalpha():
+                    # For letters (identifiers, keywords), use 'x'
+                    processed_content += 'x'
+                elif c.isdigit():
+                    # For digits, use '0'
+                    processed_content += '0'
+                elif c.isspace():
+                    # Preserve whitespace as-is
+                    processed_content += c
+                else:
+                    # For symbols and punctuation, use underscore
+                    processed_content += '_'
+        
+        # Parse the processed content with tree-sitter
+        tree = self.parser.parse(processed_content.encode("utf-8", errors="ignore"))
+        
+        return tree
 
     def get_code_entities(
         self, content: str, language: Optional[str] = None, file_path: Optional[str]="temp"
@@ -120,7 +155,7 @@ class PythonAnalyzer:
                         break
                     current = current.parent
                 if is_file_level:
-                    variable = self._create_variable_entity(node)
+                    variable = self._create_variable_entity(node, context.content)
                     if variable:
                         variable.file_path = context.file_path
                         ents.append(variable)
@@ -132,7 +167,7 @@ class PythonAnalyzer:
 
         return traverse(context.tree.root_node)
     
-    def _create_code_entity(self, node: tree_sitter.Node) -> Optional[EntityInfo]:
+    def _create_code_entity(self, node: tree_sitter.Node, content: Optional[str] = None) -> Optional[EntityInfo]:
         """Create code entity (class/method) from AST node"""
         name = self._get_node_identifier(node)
         if not name:
@@ -151,7 +186,7 @@ class PythonAnalyzer:
                         parent_type = self.PYTHON_NODE_TYPE_TO_ENTITY_TYPE.get(parent.type, "Unknown")
             parent = parent.parent
 
-        modifiers = self._get_decorators(node)
+        modifiers = self._get_decorators(node, content)
         is_exported = not name.startswith('_')
 
         return EntityInfo(
@@ -159,21 +194,21 @@ class PythonAnalyzer:
             name=name,
             parent_name=parent_name,
             parent_type=parent_type,
-            description=self._extract_docstring(node),
+            description=self._extract_docstring(node, content),
             complexity=self._calculate_complexity(node),
-            content=self._get_node_text(node),
+            content=self._get_node_text(node, content),
             is_exported=is_exported,
             modifiers=modifiers
         )
 
-    def _create_variable_entity(self, node: tree_sitter.Node) -> Optional[EntityInfo]:
+    def _create_variable_entity(self, node: tree_sitter.Node, content: Optional[str] = None) -> Optional[EntityInfo]:
         """Create variable entity from AST node"""
         name = self._get_variable_name(node)
         if not name:
             return None
 
-        var_type = self._get_variable_type(node)
-        var_value = self._get_variable_value(node)
+        var_type = self._get_variable_type(node, content)
+        var_value = self._get_variable_value(node, content)
         description = f"Type: {var_type if var_type else 'Unknown'}"
         if var_value:
             description += f"\nValue: {var_value}"
@@ -187,41 +222,41 @@ class PythonAnalyzer:
             name=name,
             description=description,
             complexity=1,
-            content=self._get_node_text(node),
+            content=self._get_node_text(node, content),
             is_exported=not name.startswith('_'),
             modifiers=modifiers
         )
 
-    def _get_variable_name(self, node: tree_sitter.Node) -> Optional[str]:
+    def _get_variable_name(self, node: tree_sitter.Node, content: Optional[str] = None) -> Optional[str]:
         """Extract variable name from assignment node"""
         if node.type == "assignment":
             left_node = node.child_by_field_name("left")
             if left_node and left_node.type == "identifier":
-                return self._get_node_text(left_node)
+                return self._get_node_text(left_node, content)
         if node.type == "type_alias_statement":
-            return self._get_node_text(node)
+            return self._get_node_text(node, content)
         return None
 
-    def _get_variable_type(self, node: tree_sitter.Node) -> Optional[str]:
+    def _get_variable_type(self, node: tree_sitter.Node, content: Optional[str] = None) -> Optional[str]:
         """Extract variable type from type hints or comments"""
         type_comment = None
         for child in node.children:
-            if child.type == "comment" and ":" in self._get_node_text(child):
-                type_comment = self._get_node_text(child).split(":")[1].strip()
+            if child.type == "comment" and ":" in self._get_node_text(child, content):
+                type_comment = self._get_node_text(child, content).split(":")[1].strip()
                 break
         return type_comment
 
-    def _get_variable_value(self, node: tree_sitter.Node) -> Optional[str]:
+    def _get_variable_value(self, node: tree_sitter.Node, content: Optional[str] = None) -> Optional[str]:
         """Extract variable value from assignment node"""
         if node.type == "assignment":
             right_node = node.child_by_field_name("right")
             if right_node:
-                return self._get_node_text(right_node)
+                return self._get_node_text(right_node, content)
         return None
 
-    def _is_constant_variable(self, node: tree_sitter.Node) -> bool:
+    def _is_constant_variable(self, node: tree_sitter.Node, content: Optional[str] = None) -> bool:
         """Check if variable follows constant naming convention (all uppercase)"""
-        name = self._get_variable_name(node)
+        name = self._get_variable_name(node, content)
         if name:
             return name.isupper()
         return False
@@ -246,14 +281,14 @@ class PythonAnalyzer:
 
         return complexity
 
-    def _extract_docstring(self, node: tree_sitter.Node) -> str:
+    def _extract_docstring(self, node: tree_sitter.Node, content: Optional[str] = None) -> str:
         """Extract documentation string from node"""
         docstring = ""
 
         # Look for string literal immediately after node start
         for child in node.children:
             if child.type in ("string", "string_literal", "comment"):
-                text = self._get_node_text(child)
+                text = self._get_node_text(child, content)
                 # Clean up the docstring
                 text = re.sub(r'^["\']|["\']$', "", text)
                 text = re.sub(r"^#\s*", "", text)
@@ -269,11 +304,27 @@ class PythonAnalyzer:
                 return self._get_node_text(child)
         return None
 
-    def _get_node_text(self, node: tree_sitter.Node) -> str:
-        """Get text content of node"""
-        if hasattr(node, "text") and node.text is not None:
+    def _get_node_text(self, node: tree_sitter.Node, content: Optional[str] = None) -> str:
+        """
+        Get text content of a node.
+        
+        Args:
+            node (tree_sitter.Node): The node to extract text from
+            content (str, optional): Original source code content. If provided, 
+                                    text is extracted using byte positions.
+                                    
+        Returns:
+            str: The text content of the node
+        """
+        if content is not None:
+            # Extract text using byte positions from the original content
+            return content[node.start_byte:node.end_byte]
+        elif hasattr(node, "text") and node.text is not None:
+            # Fall back to node.text if content is not provided
             return node.text.decode("utf-8", errors="ignore")
-        return ""
+        else:
+            # Return empty string if no text is available
+            return ""
 
     def _find_nodes_by_type(
         self, node: tree_sitter.Node, node_type: str
@@ -294,7 +345,7 @@ class PythonAnalyzer:
         # Look for initial comments
         for child in root_node.children:
             if child.type == "comment":
-                text = self._get_node_text(child)
+                text = self._get_node_text(child, context.content)
                 # Clean up comment markers
                 text = re.sub(r"^[#/*\s]+|[*\/\s]+$", "", text)
                 if text:
@@ -304,11 +355,11 @@ class PythonAnalyzer:
 
         return description.strip()
 
-    def _get_decorators(self, node: tree_sitter.Node) -> List[str]:
+    def _get_decorators(self, node: tree_sitter.Node, content: Optional[str] = None) -> List[str]:
         """Extract decorators from a node"""
         decorators = []
         for child in node.children:
             if child.type == "decorator":
-                decorator_text = self._get_node_text(child).lstrip('@')
+                decorator_text = self._get_node_text(child, content).lstrip('@')
                 decorators.append(decorator_text)
         return decorators

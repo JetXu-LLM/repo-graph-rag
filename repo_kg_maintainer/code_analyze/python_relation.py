@@ -1862,9 +1862,27 @@ class PythonRelationExtractor:
         # Start traversal from root
         traverse(tree.root_node)
 
-    def _get_node_text(self, node: tree_sitter.Node, content: str) -> str:
-        """Return the text content of a node."""
-        return content[node.start_byte:node.end_byte]
+    def _get_node_text(self, node: tree_sitter.Node, content: Optional[str] = None) -> str:
+        """
+        Get text content of a node.
+        
+        Args:
+            node (tree_sitter.Node): The node to extract text from
+            content (str, optional): Original source code content. If provided, 
+                                    text is extracted using byte positions.
+                                    
+        Returns:
+            str: The text content of the node
+        """
+        if content is not None:
+            # Extract text using byte positions from the original content
+            return content[node.start_byte:node.end_byte]
+        elif hasattr(node, "text") and node.text is not None:
+            # Fall back to node.text if content is not provided
+            return node.text.decode("utf-8", errors="ignore")
+        else:
+            # Return empty string if no text is available
+            return ""
 
     def _get_node_location(self, node: tree_sitter.Node) -> Tuple[int, int]:
         """Return (line, column) for a node (1-indexed)."""

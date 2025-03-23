@@ -53,15 +53,11 @@ class RepoKnowledgeGraph:
                 self.db.create_collection(entity_type.value)
         
         # Relationship collections - using RelationType enum values and CONTAINS
-        edge_collections = ['CONTAINS']
         for relation_type in RelationType:
-            edge_collections.append(relation_type.value)
-        
-        for edge_collection in edge_collections:
-            if self.db.has_collection(edge_collection):
-                self.db.delete_collection(edge_collection)
-            if not self.db.has_collection(edge_collection):
-                self.db.create_collection(edge_collection, edge=True)
+            if self.db.has_collection(relation_type.value):
+                self.db.delete_collection(relation_type.value)
+            if not self.db.has_collection(relation_type.value):
+                self.db.create_collection(relation_type.value, edge=True)
 
     def _generate_key(self, path: str) -> str:
         """
@@ -529,7 +525,7 @@ class RepoKnowledgeGraph:
         # First pass: Process all entities
         self.logger.info("Starting first pass: Processing repository structure and entities...")
         self.process_repo_structure(repo_name, structure)
-        self.logger.info(f"First pass completed. Extracted {len(self.repo_entities)} entities.")
+        self.logger.info(f"First pass completed. Extracted {self.repo_entities} entities.")
         
         # Second pass: Process all relationships between entities
         self.logger.info("Starting second pass: Processing entity relationships...")
