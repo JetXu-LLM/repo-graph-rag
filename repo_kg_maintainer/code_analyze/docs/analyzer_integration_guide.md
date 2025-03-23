@@ -49,7 +49,7 @@ Content-Type: application/json
     "file_type": "go",
     "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, world!\")\n}",
     "size": 78,
-    "description": "Main package file with entry point"
+    "description": "Main package file with entry point" //optional
   },
   "entities": [
     {
@@ -58,11 +58,11 @@ Content-Type: application/json
       "parent_name": "",
       "parent_type": "",
       "file_path": "path/to/file.go",
-      "description": "Main entry point for the program",
-      "complexity": 1,
+      "description": "Main entry point for the program", //optional
+      "complexity": 1, //optional
       "content": "func main() {\n\tfmt.Println(\"Hello, world!\")\n}",
-      "is_exported": false,
-      "modifiers": []
+      "is_exported": false, //optional
+      "modifiers": [] //optional
     }
   ]
 }
@@ -87,23 +87,14 @@ Content-Type: application/json
       "name": "main",
       "parent_name": "",
       "parent_type": "",
-      "file_path": "path/to/file.go",
-      "description": "Main entry point for the program",
-      "complexity": 1,
-      "content": "func main() {\n\tfmt.Println(\"Hello, world!\")\n}",
-      "is_exported": false,
-      "modifiers": []
+      "file_path": "path/to/file.go"
     },
     {
       "entity_type": "Method",
       "name": "Println",
       "parent_name": "fmt",
       "parent_type": "Package",
-      "file_path": "fmt/print.go",
-      "description": "Prints to the standard output",
-      "complexity": 2,
-      "is_exported": true,
-      "modifiers": []
+      "file_path": "fmt/print.go"
     }
   ]
 }
@@ -131,10 +122,10 @@ Content-Type: application/json
         "is_local": false
       },
       "relation_type": "CALLS",
-      "source_location": [5, 2],
-      "target_location": [5, 6],
+      "source_location": [5, 2], //optional
+      "target_location": [5, 6], //optional
       "metadata": {
-        "call_arguments": ["\"Hello, world!\""]
+        "call_arguments": ["\"Hello, world!\""] //optional
       }
     }
   ]
@@ -247,21 +238,39 @@ func GenerateEntityKey(entityType string, filePath string, name string, parentNa
     }
     key += "/" + name
     
-    // Sanitize key to remove invalid characters
-    sanitized := regexp.MustCompile("[^a-zA-Z0-9\\-_]").ReplaceAllString(key, "_")
+    // Note: Unlike previous suggestion, DO NOT replace slashes with underscores
+    // to maintain compatibility with Python implementation
     
     // Ensure key length does not exceed 254 characters
-    if len(sanitized) > 254 {
-        sanitized = sanitized[:251]
+    if len(key) > 254 {
+        key = key[:251]
     }
     
-    return sanitized
+    return key
 }
 ```
 
 This key generation is crucial for the system to correctly identify and link entities. The key format follows:
 - For entities without parents: `{EntityType}/{FilePath}/{Name}`
 - For entities with parents: `{EntityType}/{FilePath}/{ParentName}/{Name}`
+
+### 5.1 Relation Key Generation
+
+Relation keys are used for deduplication and must follow the format used in the Python implementation:
+
+```go
+// RelationKey represents a unique key for a relationship
+type RelationKey struct {
+    SourceKey     string
+    TargetKey     string
+    RelationType  string
+}
+
+// String returns the string representation of the relation key
+func (rk RelationKey) String() string {
+    return fmt.Sprintf("%s->%s:%s", rk.SourceKey, rk.TargetKey, rk.RelationType)
+}
+```
 
 ## 6. Go Language Entity Mapping
 
@@ -421,7 +430,63 @@ func extractRelationsHandler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-## 10. Testing and Validation
+## 10. Deduplication Logic
+
+### 10.1 Entity Deduplication
+
+The Python implementation doesn't explicitly deduplicate entities. Each entity is uniquely identified by its key, which includes the entity type, file path, parent name (if any), and entity name.
+
+### 10.2 Relation Deduplication
+
+Relations must be deduplicated based on their source entity key, target entity key, and relation type:
+
+```go
+func extractRelations(filePath string, content string, repoEntities []EntityInfo) []RelationInfo {
+    relations := []RelationInfo{}
+    seenRelations := map[string]bool{}
+    
+    // Process relations from the file
+    newRelations := processRelations(filePath, content, repoEntities)
+    
+    // Deduplicate relations
+    for _, relation := range newRelations {
+        // Create relation key for deduplication
+        relationKey := fmt.Sprintf("%s->%s:%s", 
+            relation.Source.Key, 
+            relation.Target.Key, 
+            relation.RelationType)
+            
+        // Only add relation if not seen before
+        if !seenRelations[relationKey] {
+            seenRelations[relationKey] = true
+            
+            // Add only if relation is valid (both source and target exist)
+            if isValidRelation(relation, repoEntities) {
+                relations = append(relations, relation)
+            }
+        }
+    }
+    
+    return relations
+}
+
+func isValidRelation(relation RelationInfo, repoEntities []EntityInfo) bool {
+    // Skip relations where source is a Module type
+    if relation.Source.EntityType == "Module" {
+        return false
+    }
+    
+    // Check if both source and target entities exist in repository
+    sourceExists := entityExists(relation.Source.Key, repoEntities)
+    targetExists := entityExists(relation.Target.Key, repoEntities)
+    
+    return sourceExists && targetExists
+}
+```
+
+This deduplication ensures that each unique relationship (based on source, target, and type) is only reported once, regardless of where it appears in the code.
+
+## 11. Testing and Validation
 
 To ensure proper integration, test your Go analyzer with:
 
