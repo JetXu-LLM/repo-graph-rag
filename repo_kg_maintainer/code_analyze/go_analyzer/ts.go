@@ -56,6 +56,9 @@ func generateNodeID(nodeType NodeType, name string, filePath string) string {
 	if filePath == "" || nodeType == ImportNode {
 		// For ImportNode id doesn't need filePath
 		return fmt.Sprintf("%s:%s", string(nodeType), name)
+	} else if nodeType == PackageNode {
+		// Package node id doesn't need the filename
+		return fmt.Sprintf("%s:%s:%s", string(nodeType), name, filepath.Dir(filePath))
 	}
 	return fmt.Sprintf("%s:%s:%s", string(nodeType), name, filePath)
 }
@@ -1031,7 +1034,12 @@ func processFunctionBody(node *sitter.Node, funcNode *Node, content []byte, kg *
 func addNode(
 	kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
 	parentStruct string, packageName string) *Node {
-	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row+1)
+	var key string
+	if nodeType == string(PackageNode) {
+		key = fmt.Sprintf("%s:%s:%s", nodeType, name, filepath.Dir(filePath))
+	} else {
+		key = fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row+1)
+	}
 	if node, exists := kg.Nodes[key]; exists {
 		return node
 	}
