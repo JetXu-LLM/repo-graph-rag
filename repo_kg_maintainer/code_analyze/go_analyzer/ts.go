@@ -123,7 +123,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Walk through all Go files in the project
+	// Walk through all Go files in the project. For each file we has 3 loops.
 	err := filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -143,6 +143,14 @@ func main() {
 		fmt.Printf("Error walking project: %v\n", err)
 		os.Exit(1)
 	}
+	if debug {
+		// Dump kg to a json file
+		kgJSON, err := json.MarshalIndent(kg, "", "  ")
+		if err != nil {
+			fmt.Printf("Error marshalling knowledge graph: %v\n", err)
+		}
+		os.WriteFile("kg.json", kgJSON, 0644)
+	}
 
 	// Print the knowledge graph in std
 	// This is for debugging purpose only, not for the final output knowledge_graph.json file
@@ -153,6 +161,14 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error generating call graph: %v\n", err)
 		os.Exit(1)
+	}
+	if debug {
+		jsonData, err := json.MarshalIndent(relationships, "", "  ")
+		if err != nil {
+			fmt.Printf("Error marshalling call graph: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("callGraph.debug.json", jsonData, 0644)
 	}
 
 	// Add all node IDs to a set
@@ -495,11 +511,11 @@ func processNestedStruct(fieldName string, typePrefix string, structNode *sitter
 	// Create a field node for the struct field itself
 	var fieldDesc string
 	if typePrefix == "[]" {
-		fieldDesc = fmt.Sprintf("%s []struct", fieldName)
+		fieldDesc = fmt.Sprintf("%s.%s []struct", parentTypeName, fieldName)
 	} else if typePrefix != "" {
-		fieldDesc = fmt.Sprintf("%s %sstruct", fieldName, typePrefix)
+		fieldDesc = fmt.Sprintf("%s.%s %sstruct", parentTypeName, fieldName, typePrefix)
 	} else {
-		fieldDesc = fmt.Sprintf("%s struct", fieldName)
+		fieldDesc = fmt.Sprintf("%s.%s struct", parentTypeName, fieldName)
 	}
 
 	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, structNode.StartPoint(), structNode.EndPoint(), parentTypeName, packageName)
@@ -529,7 +545,7 @@ func processNestedStruct(fieldName string, typePrefix string, structNode *sitter
 
 func processRegularField(fieldName string, typeRef *sitter.Node, content []byte, filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string, packageName string) {
 	fieldType := getNodeText(typeRef, content)
-	fieldDesc := fmt.Sprintf("%s %s", fieldName, fieldType)
+	fieldDesc := fmt.Sprintf("%s.%s %s", parentTypeName, fieldName, fieldType)
 	fieldNodeObj := addNode(kg, "field", fieldDesc, filePath, typeRef.StartPoint(), typeRef.EndPoint(), parentTypeName, packageName)
 	fieldNodeObj.ParentStruct = parentTypeName
 
@@ -871,7 +887,7 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 
 			// Find the existing type node
 			for _, n := range kg.Nodes {
-				if n.Type == "type_spec" && strings.TrimPrefix(n.Name, "[temporary]") == typeName {
+				if n.Type == "type_spec" && n.Name == typeName {
 					typeNodeObj = n
 					typeNodeObj.Name = typeName
 					break
@@ -899,6 +915,26 @@ func processOtherNodes(node *sitter.Node, content []byte, filePath string, kg *K
 										if node.Type == "type_spec" && node.Name == embeddedTypeName {
 											addEdge(kg, typeNodeObj, node, "extends")
 											break
+										}
+									}
+								} else {
+									// Build reference relationships for the field
+									typeName := getNodeText(typeRef, content)
+									referencedTypes := extractReferencedTypes(typeName)
+									for _, refType := range referencedTypes {
+										for _, node := range kg.Nodes {
+											if node.Type == "type_spec" && node.Name == refType {
+												// Build "references" relationships for the field node to struct node
+												fieldType := getNodeText(typeRef, content)
+												fieldName := getNodeText(nameNode, content)
+												fieldDesc := fmt.Sprintf("%s.%s %s", typeNodeObj.Name, fieldName, fieldType)
+												fieldNodeKey := fmt.Sprintf("%s:%s:%s:%d", FieldNode, fieldDesc, filePath, typeRef.StartPoint().Row+1)
+												fmt.Printf("fieldNodeKey: %s for %s\n", fieldNodeKey, refType)
+												if n, exists := kg.Nodes[fieldNodeKey]; exists {
+													fmt.Printf("Found field node: %s\n", fieldNodeKey)
+													addEdge(kg, n, node, "references")
+												}
+											}
 										}
 									}
 								}
@@ -995,7 +1031,7 @@ func processFunctionBody(node *sitter.Node, funcNode *Node, content []byte, kg *
 func addNode(
 	kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
 	parentStruct string, packageName string) *Node {
-	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row)
+	key := fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row+1)
 	if node, exists := kg.Nodes[key]; exists {
 		return node
 	}
@@ -1072,20 +1108,22 @@ func addNode(
 
 			structNodeType = FieldNode
 			nodeData = FieldInfo{
+				PackageName:  packageName,
 				FieldName:    parts[0],
 				FieldType:    parts[1],
 				ParentStruct: parentStructID,
 			}
-			nodeID = generateNodeID(structNodeType, fmt.Sprintf("%s.%s", parentStruct, name), filePath)
+			nodeID = generateNodeID(structNodeType, name, filePath)
 		}
 	case "variable":
 		parts := strings.SplitN(name, " ", 2)
 		if len(parts) == 2 {
 			structNodeType = VariableNode
 			nodeData = Variable{
-				VarName:  parts[0],
-				VarType:  parts[1],
-				Location: location,
+				PackageName: packageName,
+				VarName:     parts[0],
+				VarType:     parts[1],
+				Location:    location,
 			}
 			nodeID = generateNodeID(structNodeType, name, filePath)
 		}

@@ -69,6 +69,9 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 	// Map to track file_path -> struct_name
 	fileToStructs := make(map[string][]string)
 
+	// Map to track file_path -> variable_name
+	fileToVars := make(map[string][]string)
+
 	// First pass: organize nodes and build maps
 	for _, node := range kg.Nodes {
 		nodeMap[node.ID] = node
@@ -100,6 +103,16 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 							fileToStructs[fmt.Sprintf("%v", filePath)],
 							fmt.Sprintf("%v", data["struct_name"]),
 						)
+					}
+				}
+			}
+		}
+
+		if node.Type == VariableNode {
+			if data, ok := node.Data.(map[string]interface{}); ok {
+				if loc, exists := data["location"].(map[string]interface{}); exists {
+					if filePath, hasPath := loc["file_path"]; hasPath {
+						fileToVars[fmt.Sprintf("%v", filePath)] = append(fileToVars[fmt.Sprintf("%v", filePath)], fmt.Sprintf("%v", data["var_name"]))
 					}
 				}
 			}
@@ -144,9 +157,19 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 	// packageFunctionMap is a map[string]map[string]string
 	// tracking package_name -> function_name -> fmt.Sprintf("%d:%d", numParts, function_number)
 	packageFunctionMap := make(map[string]map[string]string)
+
+	// packageVarMap is a map[string]map[string]int
+	// tracking package_name -> variable_name -> int
+	packageVarMap := make(map[string]map[string]int)
+
 	// packageStructMethodMap is a map[string]map[string]map[string]int
 	// tracking package_name -> struct_name -> method_name -> method_number
 	packageStructMethodMap := make(map[string]map[string]map[string]int)
+
+	// packageStructFieldMap is a map[string]map[string]map[string]int
+	// tracking package_name -> struct_name -> field_name -> field_number
+	packageStructFieldMap := make(map[string]map[string]map[string]int)
+
 	// Generate subgraphs for each package
 	for pkgName, nodes := range packageNodes {
 		sb.WriteString(fmt.Sprintf("  subgraph cluster_%s {\n", sanitizeID(pkgName)))
@@ -157,13 +180,12 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 		// fileNumMap is a map tracking file_path -> int. File paths are sorted alphabetically
 		fileNumMap, filePartMap := generateFilesRecordWithFields(&sb, pkgName, nodes)
 
-		// Generate globals record
-		generateGlobalsRecord(&sb, pkgName, nodes)
-
 		// Process structs and enums
 		// methodNumMap is a map[string]map[string]int tracking struct_name -> method_name -> method_number
-		methodNumMap := processStructsAndEnums(&sb, nodes, kg, nodeMap, enumValues)
+		// fieldNumMap is a map[string]map[string]int tracking struct_name -> field_name -> field_number
+		methodNumMap, fieldNumMap := processStructsAndEnums(&sb, nodes, kg, nodeMap, enumValues)
 		packageStructMethodMap[pkgName] = methodNumMap
+		packageStructFieldMap[pkgName] = fieldNumMap
 
 		// Process global functions with <fn> fields and get function number mapping
 		// funcNumMap is a map[string]int tracking global function_name -> int
@@ -175,8 +197,10 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 			packageFunctionMap[pkgName][funcName] = fmt.Sprintf("%d:%d", partMap[funcNum], funcNum)
 		}
 
-		// Process relationships within package
-		processPackageRelationships(&sb, kg, nodes, nodeMap)
+		// Process variables with <v> fields and get variable number mapping
+		// varNumMap is a map[string]int tracking variable_name -> int
+		varNumMap := processVariables(&sb, pkgName, nodes)
+		packageVarMap[pkgName] = varNumMap
 
 		// Generate "has" relationships between files and functions
 		generateContainsRelationships(&sb, pkgName, fileToFuncs, funcNumMap, fileNumMap, partMap, filePartMap)
@@ -201,6 +225,46 @@ func GenerateDOT(kg *StructuredKnowledgeGraph, debug bool) string {
 			os.Exit(1)
 		}
 		os.WriteFile("packageFunctionMap.debug.json", jsonData, 0644)
+		jsonData, err = json.MarshalIndent(packageStructFieldMap, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling packageStructFieldMap: %v\n", err)
+			os.Exit(1)
+		}
+		os.WriteFile("packageStructFieldMap.debug.json", jsonData, 0644)
+	}
+
+	for _, edge := range kg.Edges {
+		if edge.RelationType == Extends || edge.RelationType == References {
+			sourceNode := nodeMap[edge.SourceID]
+			targetNode := nodeMap[edge.TargetID]
+			sourcePkg := getPackageName(sourceNode)
+			targetPkg := getPackageName(targetNode)
+
+			if edge.RelationType == References && sourceNode.Type == FieldNode {
+				sourceLabel := getNodeLabel(sourceNode) // sourceLabel is struct_name.field_name
+				targetLabel := getNodeLabel(targetNode)
+				structName := strings.Split(sourceLabel, ".")[0]
+				fieldNum := packageStructFieldMap[sourcePkg][structName][sourceLabel]
+
+				sb.WriteString(fmt.Sprintf("  %s_%s:fd%d -> %s_%s [label=\"%s\"];\n",
+					sanitizeID(sourcePkg),
+					sanitizeID(structName),
+					fieldNum,
+					sanitizeID(targetPkg),
+					sanitizeID(targetLabel),
+					edge.RelationType))
+			} else if edge.RelationType == Extends {
+				sourceLabel := getNodeLabel(sourceNode)
+				targetLabel := getNodeLabel(targetNode)
+
+				sb.WriteString(fmt.Sprintf("  %s_%s -> %s_%s [label=\"%s\"];\n",
+					sanitizeID(sourcePkg),
+					sanitizeID(sourceLabel),
+					sanitizeID(targetPkg),
+					sanitizeID(targetLabel),
+					edge.RelationType))
+			}
+		}
 	}
 
 	// Generate "calls" relationships between functions and functions
@@ -331,33 +395,21 @@ func generateFilesRecordWithFields(sb *strings.Builder, pkgName string, nodes []
 	return fileNumMap, filePartMap
 }
 
-func generateGlobalsRecord(sb *strings.Builder, pkgName string, nodes []GraphNode) {
-	vars := filterNodesByType(nodes, VariableNode)
-	if len(vars) > 0 {
-		sb.WriteString(fmt.Sprintf("    %s_globals [label=\"{Global Variables|", sanitizeID(pkgName)))
-		for _, v := range vars {
-			if data, ok := v.Data.(map[string]interface{}); ok {
-				varName := fmt.Sprintf("%v", data["var_name"])
-				varType := fmt.Sprintf("%v", data["var_type"])
-				sb.WriteString(fmt.Sprintf("%s: %s\\l", varName, varType))
-			}
-		}
-		sb.WriteString("}\"];\n\n")
-	}
-}
-
 func processStructsAndEnums(
 	sb *strings.Builder, nodes []GraphNode, kg *StructuredKnowledgeGraph,
-	nodeMap map[string]GraphNode, enumValues map[string][]string) map[string]map[string]int {
+	nodeMap map[string]GraphNode, enumValues map[string][]string) (map[string]map[string]int, map[string]map[string]int) {
 	structs := filterNodesByType(nodes, StructNode)
 
 	// methodNumMap is a map[string]map[string]int tracking struct_name -> method_name -> method_number
 	methodNumMap := make(map[string]map[string]int)
+	// fieldNumMap is a map[string]map[string]int tracking struct_name -> field_name -> field_number
+	fieldNumMap := make(map[string]map[string]int)
 
 	for _, s := range structs {
 		if data, ok := s.Data.(map[string]interface{}); ok {
 			structName := fmt.Sprintf("%v", data["struct_name"])
 			methodNumMap[structName] = make(map[string]int)
+			fieldNumMap[structName] = make(map[string]int)
 			pkgName := fmt.Sprintf("%v", data["package_name"])
 
 			// Check if this is an enum
@@ -382,15 +434,17 @@ func processStructsAndEnums(
 				structName))
 
 			// Process fields
+			fieldNum := 0
 			if fields, ok := data["fields"].([]interface{}); ok {
 				for _, fieldID := range fields {
-					fieldIDParts := strings.SplitN(fmt.Sprintf("%v", fieldID), ":", 2)
-					fieldFullID := fmt.Sprintf("%s:%s.%s", fieldIDParts[0], structName, fieldIDParts[1])
-					if fieldNode, exists := nodeMap[fieldFullID]; exists {
+					if fieldNode, exists := nodeMap[fieldID.(string)]; exists {
 						if fieldData, ok := fieldNode.Data.(map[string]interface{}); ok {
 							fieldName := fmt.Sprintf("%v", fieldData["field_name"])
 							fieldType := sanitizeParams(fmt.Sprintf("%v", fieldData["field_type"]))
-							sb.WriteString(fmt.Sprintf("%s %s\\l", fieldName, fieldType))
+
+							fieldNum++
+							sb.WriteString(fmt.Sprintf("<fd%d> %s %s|", fieldNum, fieldName, fieldType))
+							fieldNumMap[structName][fieldName] = fieldNum
 						}
 					}
 				}
@@ -427,7 +481,7 @@ func processStructsAndEnums(
 		}
 	}
 	sb.WriteString("\n")
-	return methodNumMap
+	return methodNumMap, fieldNumMap
 }
 
 func sanitizeParams(params string) string {
@@ -514,37 +568,9 @@ func processGlobalFunctionsWithFields(sb *strings.Builder, pkgName string, nodes
 	return funcNumMap, partMap
 }
 
-func processPackageRelationships(sb *strings.Builder, kg *StructuredKnowledgeGraph, nodes []GraphNode, nodeMap map[string]GraphNode) {
-	nodeIDs := make(map[string]bool)
-	for _, node := range nodes {
-		nodeIDs[node.ID] = true
-	}
-
-	for _, edge := range kg.Edges {
-		if edge.RelationType == References || edge.RelationType == Extends {
-			if nodeIDs[edge.SourceID] && nodeIDs[edge.TargetID] {
-				sourceNode := nodeMap[edge.SourceID]
-				targetNode := nodeMap[edge.TargetID]
-
-				sourceLabel := getNodeLabel(sourceNode)
-				targetLabel := getNodeLabel(targetNode)
-
-				// Get package names for both source and target
-				sourcePkg := getPackageName(sourceNode)
-				targetPkg := getPackageName(targetNode)
-
-				sb.WriteString(fmt.Sprintf("    %s_%s -> %s_%s [label=\"%s\"];\n",
-					sanitizeID(sourcePkg),
-					sanitizeID(sourceLabel),
-					sanitizeID(targetPkg),
-					sanitizeID(targetLabel),
-					edge.RelationType))
-			}
-		}
-	}
-}
-
-func generateContainsRelationships(sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int, fileNumMap map[string]int, partMap map[int]int, filePartMap map[int]int) {
+func generateContainsRelationships(
+	sb *strings.Builder, pkgName string, fileToFuncs map[string][]string, funcNumMap map[string]int,
+	fileNumMap map[string]int, partMap map[int]int, filePartMap map[int]int) {
 	// Generate relationships using both part mappings
 	for file, funcs := range fileToFuncs {
 		if fileNum, exists := fileNumMap[file]; exists {
@@ -605,6 +631,8 @@ func getNodeLabel(node GraphNode) string {
 			return fmt.Sprintf("%v", data["function_name"])
 		case VariableNode:
 			return fmt.Sprintf("%v", data["var_name"])
+		case FieldNode:
+			return fmt.Sprintf("%v", data["field_name"])
 		}
 	}
 	return node.ID
@@ -632,4 +660,57 @@ func sanitizeID(id string) string {
 		":", "_",
 	)
 	return replacer.Replace(id)
+}
+
+func processVariables(sb *strings.Builder, pkgName string, nodes []GraphNode) map[string]int {
+	vars := filterNodesByType(nodes, VariableNode)
+	varNumMap := make(map[string]int)
+	varNum := 0
+
+	if len(vars) == 0 {
+		return varNumMap
+	}
+
+	const maxLabelLength = 16000 // Keep some buffer below 16384
+	var currentLength int
+	var currentPart int
+
+	// Start first part
+	currentPart++
+	sb.WriteString(fmt.Sprintf("    %s_variables_part%d [label=\"{Variables part%d",
+		sanitizeID(pkgName), currentPart, currentPart))
+	currentLength = len("Variables")
+
+	for _, v := range vars {
+		if data, ok := v.Data.(map[string]interface{}); ok {
+			varName := fmt.Sprintf("%v", data["var_name"])
+			varType := sanitizeParams(fmt.Sprintf("%v", data["var_type"]))
+
+			label := fmt.Sprintf("%s: %s", varName, varType)
+			entryLength := len(fmt.Sprintf("|<v%d> %s", varNum+1, label))
+
+			if currentLength+entryLength > maxLabelLength {
+				sb.WriteString("}\"];\n\n")
+				currentPart++
+				sb.WriteString(fmt.Sprintf("    %s_variables_part%d [label=\"{Variables part%d",
+					sanitizeID(pkgName), currentPart, currentPart))
+				currentLength = len("Variables")
+			}
+
+			varNum++
+			sb.WriteString(fmt.Sprintf("|<v%d> %s", varNum, label))
+			currentLength += entryLength
+			varNumMap[varName] = varNum
+		}
+	}
+	sb.WriteString("}\"];\n\n")
+
+	// Add invisible edges between parts
+	for i := 1; i < currentPart; i++ {
+		sb.WriteString(fmt.Sprintf("    %s_variables_part%d -> %s_variables_part%d [style=invis];\n",
+			sanitizeID(pkgName), i, sanitizeID(pkgName), i+1))
+	}
+	sb.WriteString("\n")
+
+	return varNumMap
 }
