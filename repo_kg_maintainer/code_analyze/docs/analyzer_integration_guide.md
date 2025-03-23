@@ -4,7 +4,7 @@ This document provides guidance for integrating Go analyzer services with the re
 
 ## 1. Architecture Overview
 
-![High Level Architecture](repo_kg_maintainer/code_analyze/docs/analyzer_integration_guide.drawio.svg)
+![High Level Architecture](analyzer_integration_guide.drawio.svg)
 
 ## 2. Integration Process
 
