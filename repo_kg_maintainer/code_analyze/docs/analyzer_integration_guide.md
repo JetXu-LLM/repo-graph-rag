@@ -4,35 +4,7 @@ This document provides guidance for integrating Go analyzer services with the re
 
 ## 1. Architecture Overview
 
-```
-graph LR
-    RKG[RepoKnowledgeGraph]
-    CA[CodeAnalyzer]
-    GAP[GoAnalyzerProxy]
-    GEE[GoEntityExtractor] 
-    GRE[GoRelationExtractor]
-    DB[(ArangoDB)]
-    
-    RKG -->|1. Process Repo Structure| CA
-    CA -->|2. Detect Go File| GAP
-    GAP -->|3. Request Entity Extraction| GEE
-    GEE -->|4. Return Entities| GAP
-    GAP -->|5. Return Entities| CA
-    CA -->|6. Return All Entities| RKG
-    RKG -->|7. Store Entities| DB
-    RKG -->|8. Process Relations| CA
-    CA -->|9. Send File & All Entities| GAP
-    GAP -->|10. Request Relation Extraction| GRE
-    GRE -->|11. Return Relations| GAP
-    GAP -->|12. Return Relations| CA
-    CA -->|13. Return All Relations| RKG
-    RKG -->|14. Store Relations| DB
-    
-    subgraph "Go Analyzer Service"
-    GEE
-    GRE
-    end
-```
+![High Level Architecture](./repo_kg_maintainer/code_analyze/docs/analyzer_integration_guide.drawio.svg)
 
 ## 2. Integration Process
 
