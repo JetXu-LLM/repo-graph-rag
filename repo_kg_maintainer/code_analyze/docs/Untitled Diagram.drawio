@@ -1,0 +1,133 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" version="24.8.3">
+  <diagram name="Page-1" id="HUHZ1g1YBuLcZgU7ua3-">
+    <mxGraphModel dx="1026" dy="589" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="zz81cwq8RK7lKr1mecW7-35" value="Go Analyzer Service" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="735" y="120" width="255" height="219" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-36" value="RepoKnowledgeGraph" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="20" y="236" width="215" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-37" value="CodeAnalyzer" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="289" y="207" width="158" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-38" value="GoAnalyzerProxy" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="501" y="193" width="180" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-39" value="GoEntityExtractor" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="768" y="157" width="188" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-40" value="GoRelationExtractor" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="760" y="256" width="205" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-41" value="ArangoDB" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="326" y="305" width="83" height="63" as="geometry" />
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-42" value="1. Process Repo Structure" style="curved=1;startArrow=none;endArrow=block;exitX=0.7;exitY=-0.01;entryX=0.16;entryY=-0.01;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-36" target="zz81cwq8RK7lKr1mecW7-37">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="262" y="183" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-43" value="2. Detect Go File" style="curved=1;startArrow=none;endArrow=block;exitX=0.84;exitY=-0.01;entryX=0.04;entryY=0.01;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-37" target="zz81cwq8RK7lKr1mecW7-38">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="474" y="183" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-44" value="3. Request Entity Extraction" style="curved=1;startArrow=none;endArrow=block;exitX=0.83;exitY=0.01;entryX=0;entryY=0.32;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-38" target="zz81cwq8RK7lKr1mecW7-39">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="708" y="170" />
+              <mxPoint x="735" y="170" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-45" value="4. Return Entities" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.68;entryX=1;entryY=0.13;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-39" target="zz81cwq8RK7lKr1mecW7-38">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="735" y="194" />
+              <mxPoint x="708" y="194" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-46" value="5. Return Entities" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.71;entryX=1;entryY=0.49;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-38" target="zz81cwq8RK7lKr1mecW7-37">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="474" y="231" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-47" value="6. Return All Entities" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.49;entryX=1;entryY=0.01;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-37" target="zz81cwq8RK7lKr1mecW7-36">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="262" y="231" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-48" value="7. Store Entities" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.8;entryX=0;entryY=0.14;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-36" target="zz81cwq8RK7lKr1mecW7-41">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="262" y="279" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-49" value="8. Process Relations" style="curved=1;startArrow=none;endArrow=block;exitX=0.79;exitY=-0.01;entryX=0;entryY=0.12;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-36" target="zz81cwq8RK7lKr1mecW7-37">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="262" y="207" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-50" value="9. Send File &amp; All Entities" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.12;entryX=0;entryY=0.33;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-37" target="zz81cwq8RK7lKr1mecW7-38">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="474" y="207" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-51" value="10. Request Relation Extraction" style="curved=1;startArrow=none;endArrow=block;exitX=0.81;exitY=0.99;entryX=0;entryY=0.3;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-38" target="zz81cwq8RK7lKr1mecW7-40">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="708" y="268" />
+              <mxPoint x="735" y="268" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-52" value="11. Return Relations" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.81;entryX=0.69;entryY=0.99;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-40" target="zz81cwq8RK7lKr1mecW7-38">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="735" y="300" />
+              <mxPoint x="708" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-53" value="12. Return Relations" style="curved=1;startArrow=none;endArrow=block;exitX=0.08;exitY=0.99;entryX=1;entryY=0.85;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-38" target="zz81cwq8RK7lKr1mecW7-37">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="474" y="255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-54" value="13. Return All Relations" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.85;entryX=1;entryY=0.41;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-37" target="zz81cwq8RK7lKr1mecW7-36">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="262" y="255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zz81cwq8RK7lKr1mecW7-55" value="14. Store Relations" style="curved=1;startArrow=none;endArrow=block;exitX=0.67;exitY=0.98;entryX=0;entryY=0.58;rounded=0;fontSize=8;" edge="1" parent="1" source="zz81cwq8RK7lKr1mecW7-36" target="zz81cwq8RK7lKr1mecW7-41">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="262" y="349" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
