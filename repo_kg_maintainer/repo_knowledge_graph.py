@@ -322,6 +322,7 @@ class RepoKnowledgeGraph:
                             }
                             entity_key = self._generate_key(f"{entity.entity_type}/{current_path}/{(entity.parent_name+'/') if entity.parent_name else ''}{entity.name}")
                             entity_id = self._upsert_entity(entity.entity_type, entity_key, entity_data)
+                            self.repo_entities.append(entity)
                             self.logger.info(f"Created {entity.entity_type.lower()} '{entity_key}' with ID '{entity_id}'")
 
                             has_parent = False
@@ -333,7 +334,6 @@ class RepoKnowledgeGraph:
                                     self._upsert_relationship(parent_entity['_id'], entity_id, 'CONTAINS', 
                                                             {'containment_type': 'physical', 'is_required': True})
                                     has_parent = True
-                                    self.repo_entities.append(entity)
                                     self.logger.info(f"Created relationship between '{parent_entity['_id']}' and '{entity_id}'")
                             
                             # Create CONTAINS relationship
