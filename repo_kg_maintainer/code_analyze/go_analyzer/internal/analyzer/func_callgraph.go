@@ -1,4 +1,4 @@
-package main
+package analyzer
 
 import (
 	"fmt"
@@ -208,7 +208,11 @@ func (a *Analyzer) processTypeDeclaration(typeSpec *ast.TypeSpec, packageName st
 	}
 }
 
-func (a *Analyzer) processStructType(typeSpec *ast.TypeSpec, structType *ast.StructType, packageName string) {
+func (a *Analyzer) processStructType(
+	typeSpec *ast.TypeSpec,
+	structType *ast.StructType,
+	packageName string,
+) {
 	typeName := typeSpec.Name.Name
 
 	// Initialize field map for this struct if not exists
