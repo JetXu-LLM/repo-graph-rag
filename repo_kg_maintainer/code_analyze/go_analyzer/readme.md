@@ -39,9 +39,9 @@ type StructField struct {
 }
 
 ## Useful Commands
-- `make` To compile all binaries
-- `go run ts.go knowledge_graph.go <PROJECT_DIRECTORY>` or `./kg <PROJECT_DIRECTORY>` - Generate knowledge_graph.json file
-- `go run dot.go knowledge_graph.go` or `./dot` - Consume knowledge_graph.json and generate output.dot file
+- `make all` To compile all binaries
+- ``./build/kg <PROJECT_DIRECTORY>` - Generate knowledge_graph.json file
+- `./build/dot` - Consume knowledge_graph.json and generate output.dot file
 - `neato -Goverlap=false -Tpng output.dot -o vehicle.png` - Not recommended, neato has a bug to overlap the subgraphs
 - `fdp -Tpng -Gdpi=300 output.dot -o vehicle.png` - Not recommended, it won't be able to render the large png
 - `fdp -Tsvg output.dot -o vehicle.svg`
