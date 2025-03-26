@@ -77,6 +77,20 @@ type StructInfo struct {
 	Location    CodeLocation `json:"location"`
 }
 
+type InterfaceInfo struct {
+	PackageName   string       `json:"package_name"`
+	InterfaceName string       `json:"interface_name"`
+	Methods       []string     `json:"methods"` // Array of Method ids
+	Location      CodeLocation `json:"location"`
+}
+
+type InterfaceFunction struct {
+	PackageName   string       `json:"package_name"`
+	InterfaceName string       `json:"interface_name"`
+	Method        string       `json:"method"`
+	Location      CodeLocation `json:"location"`
+}
+
 type MemberFunction struct {
 	Function
 	ParentStruct string `json:"parent_struct"` // Parent struct id
@@ -145,12 +159,14 @@ type StructuredKnowledgeGraph struct {
 type NodeType string
 
 const (
-	PackageNode   NodeType = "package"
-	StructNode    NodeType = "struct"
-	FunctionNode  NodeType = "function"
-	FieldNode     NodeType = "field"
-	VariableNode  NodeType = "variable"
-	EnumNode      NodeType = "enum"
-	EnumValueNode NodeType = "enum_value"
-	ImportNode    NodeType = "import"
+	PackageNode           NodeType = "package"
+	StructNode            NodeType = "struct"
+	InterfaceNode         NodeType = "interface"
+	FunctionNode          NodeType = "function"
+	InterfaceFunctionNode NodeType = "interface_func"
+	FieldNode             NodeType = "field"
+	VariableNode          NodeType = "variable"
+	EnumNode              NodeType = "enum"
+	EnumValueNode         NodeType = "enum_value"
+	ImportNode            NodeType = "import"
 )

@@ -27,6 +27,8 @@ func getNodeType(nodeType string) NodeType {
 		return EnumValueNode
 	case "import":
 		return ImportNode
+	case "interface":
+		return InterfaceNode
 	default:
 		return NodeType(nodeType)
 	}
@@ -98,6 +100,15 @@ func addNode(
 			Location:    location,
 		}
 		nodeID = generateNodeID(structNodeType, name, filePath)
+	case "interface":
+		structNodeType = InterfaceNode
+		nodeData = InterfaceInfo{
+			PackageName:   packageName,
+			InterfaceName: name,
+			Location:      location,
+			Methods:       make([]string, 0),
+		}
+		nodeID = generateNodeID(structNodeType, name, filePath)
 	case "function":
 		structNodeType = FunctionNode
 		nodeData = Function{
@@ -135,6 +146,18 @@ func addNode(
 				VarName:     parts[0],
 				VarType:     parts[1],
 				Location:    location,
+			}
+			nodeID = generateNodeID(structNodeType, name, filePath)
+		}
+	case "interface_func":
+		structNodeType = InterfaceFunctionNode
+		parts := strings.SplitN(name, ".", 2)
+		if len(parts) == 2 {
+			nodeData = InterfaceFunction{
+				PackageName:   packageName,
+				InterfaceName: parentStruct,
+				Method:        parts[1],
+				Location:      location,
 			}
 			nodeID = generateNodeID(structNodeType, name, filePath)
 		}
@@ -241,4 +264,32 @@ func generateNodeID(nodeType NodeType, name string, filePath string) string {
 		return fmt.Sprintf("%s:%s:%s", string(nodeType), name, filepath.Dir(filePath))
 	}
 	return fmt.Sprintf("%s:%s:%s", string(nodeType), name, filePath)
+}
+
+func FindInterfaceNode(interfaceMethodName string, nodes []GraphNode) (string, bool) {
+	parts := strings.Split(interfaceMethodName, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+
+	packageName := parts[0]
+	interfaceName := parts[1]
+	interfaceMethod := parts[2]
+
+	for _, node := range nodes {
+		if node.Type == InterfaceFunctionNode {
+			interfaceFuncInfo := node.Data.(InterfaceFunction)
+			if interfaceFuncInfo.PackageName != packageName {
+				continue
+			}
+			if interfaceFuncInfo.InterfaceName != interfaceName {
+				continue
+			}
+			if interfaceFuncInfo.Method != interfaceMethod {
+				continue
+			}
+			return node.ID, true
+		}
+	}
+	return "", false
 }
