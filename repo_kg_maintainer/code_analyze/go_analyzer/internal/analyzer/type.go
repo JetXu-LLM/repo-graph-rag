@@ -59,7 +59,7 @@ func ProcessTypes(
 					for _, n := range kg.Nodes {
 						if n.Type == "type_spec" && n.Name == typeName &&
 							n.PackageName == packageName &&
-							n.FilePath != filePath { // Is this correct?
+							n.FilePath != filePath {
 							nodeID := fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line)
 							delete(kg.Nodes, nodeID)
 							for i := len(structuredKG.Nodes) - 1; i >= 0; i-- {
@@ -148,9 +148,26 @@ func ProcessTypes(
 						packageName,
 						structuredKG,
 					)
+				} else if typeDefNode.Type() == "interface_type" {
+					// Handle interface type
+					interfaceNodeObj := addNode(
+						kg, "interface", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(),
+						"", packageName, structuredKG)
+					if packageNode != nil {
+						addEdge(kg, packageNode, interfaceNodeObj, "has_interface", structuredKG)
+					}
+					processInterfaceMethods(
+						typeDefNode,
+						content,
+						filePath,
+						kg,
+						interfaceNodeObj,
+						packageName,
+						structuredKG)
 				} else if typeDefNode.Type() == "function_type" {
 					// Handle function type
-					functionNodeObj := addNode(kg, "function", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "", packageName, structuredKG)
+					functionNodeObj := addNode(kg, "function", typeName, filePath,
+						typeNode.StartPoint(), typeNode.EndPoint(), "", packageName, structuredKG)
 
 					// Extract parameters and return types from the function type
 					paramsNode := typeDefNode.ChildByFieldName("parameters")

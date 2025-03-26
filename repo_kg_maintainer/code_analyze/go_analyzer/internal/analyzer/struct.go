@@ -99,7 +99,6 @@ func processStructFields(
 					}
 
 					fieldName := getNodeText(nameNode, content)
-					fmt.Printf("parentTypeName: %s fieldName: %s packageName: %s %v\n", parentTypeName, fieldName, packageName, typeRef.Type())
 
 					// Handle different field types
 					switch typeRef.Type() {
