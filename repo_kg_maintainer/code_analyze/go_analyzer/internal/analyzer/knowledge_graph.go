@@ -80,6 +80,7 @@ type StructInfo struct {
 type InterfaceInfo struct {
 	PackageName   string       `json:"package_name"`
 	InterfaceName string       `json:"interface_name"`
+	Extends       []string     `json:"extends"` // Array of Interface names
 	Methods       []string     `json:"methods"` // Array of Method ids
 	Location      CodeLocation `json:"location"`
 }

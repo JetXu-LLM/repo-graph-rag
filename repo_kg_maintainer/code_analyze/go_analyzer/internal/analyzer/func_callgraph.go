@@ -508,31 +508,49 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 						if callee != "" {
 							// Get the callee's file path from the Functions map
 							calleeFilePath := ""
+							found := false
 							for path, pkg := range a.Packages {
+								fmt.Printf("callee: %s, path: %s, pkg: %s\n", callee, path, pkg)
 								if strings.HasPrefix(callee, pkg+".") {
 									// Find the most specific match by walking the directory
+									fmt.Printf("Found pkg: %s for callee: %s. Walking directory %s...\n", pkg, callee, path)
 									err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 										if err != nil {
 											return err
 										}
 										if !info.IsDir() && strings.HasSuffix(p, ".go") {
 											// Check if this file contains the callee
+											fmt.Printf("Checking file: %s\n", p)
 											content, err := os.ReadFile(p)
 											if err == nil {
-												// Look for function declaration pattern: "func" followed by optional receiver, function name, and opening parenthesis
-												funcPattern := `func\s+(?:\([^)]+\)\s+)?` + regexp.QuoteMeta(strings.TrimPrefix(callee, pkg+".")) + `\(`
+												var funcPattern string
+												trimmedCallee := strings.TrimPrefix(callee, pkg+".")
+												if strings.Contains(trimmedCallee, ".") {
+													parts := strings.Split(trimmedCallee, ".")
+													structName := parts[0]
+													methodName := parts[1]
+													funcPattern = `func\s+\(\w+\s+(?:\*)?` + regexp.QuoteMeta(structName) + `\)\s+` + regexp.QuoteMeta(methodName) + `\(`
+												} else {
+													funcPattern = `func\s+(?:\([^)]+\)\s+)?` + regexp.QuoteMeta(trimmedCallee) + `\(`
+												}
 												matched, regexErr := regexp.Match(funcPattern, content)
 												if regexErr == nil && matched {
+													fmt.Printf("Found file: %s for callee: %s\n", p, callee)
 													calleeFilePath = p
+													found = true
 												}
 											}
 										}
 										return nil
 									})
+									if !found {
+										fmt.Printf("Not found file for callee: %s\n", callee)
+									} else {
+										break
+									}
 									if err != nil {
 										fmt.Printf("Error finding callee file: %v\n", err)
 									}
-									break
 								}
 							}
 

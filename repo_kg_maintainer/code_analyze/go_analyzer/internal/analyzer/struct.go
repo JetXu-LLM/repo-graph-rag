@@ -135,7 +135,17 @@ func processStructFields(
 							)
 						} else {
 							// Regular array field
-							processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName, packageName, structuredKG)
+							processRegularField(
+								fieldName,
+								typeRef,
+								content,
+								filePath,
+								kg,
+								parentTypeNode,
+								parentTypeName,
+								packageName,
+								structuredKG,
+							)
 						}
 
 					case "map_type":
@@ -158,7 +168,17 @@ func processStructFields(
 							)
 						} else {
 							// Regular map field
-							processRegularField(fieldName, typeRef, content, filePath, kg, parentTypeNode, parentTypeName, packageName, structuredKG)
+							processRegularField(
+								fieldName,
+								typeRef,
+								content,
+								filePath,
+								kg,
+								parentTypeNode,
+								parentTypeName,
+								packageName,
+								structuredKG,
+							)
 						}
 
 					default:

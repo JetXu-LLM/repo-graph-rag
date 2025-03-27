@@ -225,6 +225,18 @@ func extractReferencedTypes(typeStr string) []string {
 }
 
 func SaveKnowledgeGraph(structuredKG *StructuredKnowledgeGraph) error {
+	// Sort structuredKG's nodes by id
+	sort.Slice(structuredKG.Nodes, func(i, j int) bool {
+		return structuredKG.Nodes[i].ID < structuredKG.Nodes[j].ID
+	})
+	// Sort structuredKG's edges by source_id + target_id
+	sort.Slice(structuredKG.Edges, func(i, j int) bool {
+		if structuredKG.Edges[i].SourceID == structuredKG.Edges[j].SourceID {
+			return structuredKG.Edges[i].TargetID < structuredKG.Edges[j].TargetID
+		}
+		return structuredKG.Edges[i].SourceID < structuredKG.Edges[j].SourceID
+	})
+
 	data, err := json.MarshalIndent(*structuredKG, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal knowledge graph: %v", err)
