@@ -17,6 +17,12 @@ func ProcessTypes(
 ) {
 	// Find the package name first
 	var packageName string
+	// for _, n := range structuredKG.Nodes {
+	// 	if n.Type == PackageNode && filepath.Dir(filePath) == n.Data.(PackageInfo).Location.FilePath {
+	// 		packageName = n.Data.(PackageInfo).PackageName
+	// 		break
+	// 	}
+	// }
 	for _, n := range kg.Nodes {
 		if n.Type == "package" && filepath.Dir(filePath) == n.FilePath {
 			packageName = n.Name
@@ -207,15 +213,18 @@ func ProcessTypes(
 				} else {
 					// Remove temporary nodes as before
 					for _, n := range kg.Nodes {
-						if n.Type == "type_spec" && n.Name == typeName && n.PackageName == packageName && n.FilePath != filePath {
+						if n.Type == "type_spec" && n.Name == typeName &&
+							n.PackageName == packageName && n.FilePath != filePath {
 							delete(kg.Nodes, fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line))
 
 							for i := len(structuredKG.Nodes) - 1; i >= 0; i-- {
 								node := structuredKG.Nodes[i]
 								if node.Type == StructNode {
 									if structData, ok := node.Data.(StructInfo); ok {
-										if structData.StructName == typeName && structData.PackageName == packageName {
-											structuredKG.Nodes = append(structuredKG.Nodes[:i], structuredKG.Nodes[i+1:]...)
+										if structData.StructName == typeName &&
+											structData.PackageName == packageName {
+											structuredKG.Nodes = append(
+												structuredKG.Nodes[:i], structuredKG.Nodes[i+1:]...)
 										}
 									}
 								}
@@ -223,7 +232,17 @@ func ProcessTypes(
 						}
 					}
 					// Handle other types. e.g, enum
-					typeNodeObj := addNode(kg, "type_spec", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(), "", packageName, structuredKG)
+					typeNodeObj := addNode(
+						kg,
+						"type_spec",
+						typeName,
+						filePath,
+						typeNode.StartPoint(),
+						typeNode.EndPoint(),
+						"",
+						packageName,
+						structuredKG,
+					)
 					if packageNode != nil {
 						addEdge(kg, packageNode, typeNodeObj, "has_type_spec", structuredKG)
 					}
