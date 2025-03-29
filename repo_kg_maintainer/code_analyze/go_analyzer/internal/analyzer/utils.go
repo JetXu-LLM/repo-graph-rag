@@ -171,18 +171,21 @@ func extractReferencedTypes(typeStr string) []string {
 		inner := strings.TrimPrefix(typeStr, "map[")
 		parts := strings.SplitN(inner, "]", 2)
 		if len(parts) == 2 {
-			// Add key type if it's not built-in
+			// Process key type
 			keyType := strings.TrimSpace(parts[0])
+			// Handle pointer in key type
+			if strings.HasPrefix(keyType, "*") {
+				keyType = strings.TrimPrefix(keyType, "*")
+			}
 			if !isBuiltinType(keyType) {
 				types = append(types, keyType)
 			}
-			// Add value type if it's not built-in
+
+			// Process value type recursively
 			valueType := strings.TrimSpace(parts[1])
-			// Handle pointer types in map values
-			valueType = strings.TrimPrefix(valueType, "*")
-			if !isBuiltinType(valueType) {
-				types = append(types, valueType)
-			}
+			// Handle nested types by recursion
+			nestedTypes := extractReferencedTypes(valueType)
+			types = append(types, nestedTypes...)
 		}
 		return types
 	}
@@ -190,28 +193,25 @@ func extractReferencedTypes(typeStr string) []string {
 	// Handle slice types
 	if strings.HasPrefix(typeStr, "[]") {
 		elemType := strings.TrimPrefix(typeStr, "[]")
-		// Handle pointer types in slices
-		elemType = strings.TrimPrefix(elemType, "*")
-		if !isBuiltinType(elemType) {
-			types = append(types, elemType)
-		}
+		// Recursively process the element type
+		nestedTypes := extractReferencedTypes(elemType)
+		types = append(types, nestedTypes...)
 		return types
 	}
 
 	// Handle simple pointer types
 	if strings.HasPrefix(typeStr, "*") {
 		elemType := strings.TrimPrefix(typeStr, "*")
-		if !isBuiltinType(elemType) {
-			types = append(types, elemType)
-		}
+		// Recursively process the pointed type
+		nestedTypes := extractReferencedTypes(elemType)
+		types = append(types, nestedTypes...)
 		return types
 	}
 
 	// Handle package-qualified types (e.g., sync.Mutex)
 	if strings.Contains(typeStr, ".") {
-		parts := strings.Split(typeStr, ".")
-		if len(parts) == 2 && !isBuiltinType(parts[1]) {
-			types = append(types, parts[1])
+		if !isBuiltinType(typeStr) {
+			types = append(types, typeStr)
 		}
 		return types
 	}

@@ -6,7 +6,6 @@ func ProcessPackageDecl(
 	node *sitter.Node,
 	content []byte,
 	filePath string,
-	kg *KnowledgeGraph,
 	structuredKG *StructuredKnowledgeGraph,
 ) {
 	if node.Type() == "source_file" {
@@ -20,7 +19,6 @@ func ProcessPackageDecl(
 					if nameNode != nil {
 						packageName := getNodeText(nameNode, content)
 						addNode(
-							kg,
 							"package",
 							packageName,
 							filePath,

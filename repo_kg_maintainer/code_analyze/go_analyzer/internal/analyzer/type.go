@@ -11,21 +11,14 @@ func ProcessTypes(
 	node *sitter.Node,
 	content []byte,
 	filePath string,
-	kg *KnowledgeGraph,
 	debug bool,
 	structuredKG *StructuredKnowledgeGraph,
 ) {
 	// Find the package name first
 	var packageName string
-	// for _, n := range structuredKG.Nodes {
-	// 	if n.Type == PackageNode && filepath.Dir(filePath) == n.Data.(PackageInfo).Location.FilePath {
-	// 		packageName = n.Data.(PackageInfo).PackageName
-	// 		break
-	// 	}
-	// }
-	for _, n := range kg.Nodes {
-		if n.Type == "package" && filepath.Dir(filePath) == n.FilePath {
-			packageName = n.Name
+	for _, n := range structuredKG.Nodes {
+		if n.Type == PackageNode && filepath.Dir(filePath) == n.Data.(PackageInfo).Location.FilePath {
+			packageName = n.Data.(PackageInfo).PackageName
 			break
 		}
 	}
@@ -43,14 +36,14 @@ func ProcessTypes(
 			if typeDefNode != nil {
 				// Find the package node for this file first
 				var packageNode *Node
-				if packageNode, exists := kg.Nodes[generateNodeID("package", packageName, filePath)]; exists {
+				if packageNode, exists := structuredKG.Kg.Nodes[generateNodeID("package", packageName, filePath)]; exists {
 					packageNode = packageNode
 				}
 
 				if typeDefNode.Type() == "struct_type" {
 					// Store old temporary node IDs before removing them
 					oldNodeIDs := make([]string, 0)
-					for _, n := range kg.Nodes {
+					for _, n := range structuredKG.Kg.Nodes {
 						if n.Type == "type_spec" && n.Name == typeName &&
 							n.PackageName == packageName &&
 							n.FilePath != filePath {
@@ -62,12 +55,12 @@ func ProcessTypes(
 					}
 
 					// Remove temporary nodes as before
-					for _, n := range kg.Nodes {
+					for _, n := range structuredKG.Kg.Nodes {
 						if n.Type == "type_spec" && n.Name == typeName &&
 							n.PackageName == packageName &&
 							n.FilePath != filePath {
 							nodeID := fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line)
-							delete(kg.Nodes, nodeID)
+							delete(structuredKG.Kg.Nodes, nodeID)
 							for i := len(structuredKG.Nodes) - 1; i >= 0; i-- {
 								node := structuredKG.Nodes[i]
 								if node.Type == StructNode {
@@ -86,7 +79,6 @@ func ProcessTypes(
 
 					// Create the new struct node
 					typeNodeObj := addNode(
-						kg,
 						"type_spec",
 						typeName,
 						filePath,
@@ -98,7 +90,7 @@ func ProcessTypes(
 					)
 
 					if packageNode != nil {
-						addEdge(kg, packageNode, typeNodeObj, "has_struct", structuredKG)
+						addEdge(packageNode, typeNodeObj, "has_struct", structuredKG)
 					}
 
 					// Update has_method edges in structuredKG
@@ -148,7 +140,6 @@ func ProcessTypes(
 						typeDefNode,
 						content,
 						filePath,
-						kg,
 						typeNodeObj,
 						typeName,
 						packageName,
@@ -157,22 +148,21 @@ func ProcessTypes(
 				} else if typeDefNode.Type() == "interface_type" {
 					// Handle interface type
 					interfaceNodeObj := addNode(
-						kg, "interface", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(),
+						"interface", typeName, filePath, typeNode.StartPoint(), typeNode.EndPoint(),
 						"", packageName, structuredKG)
 					if packageNode != nil {
-						addEdge(kg, packageNode, interfaceNodeObj, "has_interface", structuredKG)
+						addEdge(packageNode, interfaceNodeObj, "has_interface", structuredKG)
 					}
 					processInterfaceMethods(
 						typeDefNode,
 						content,
 						filePath,
-						kg,
 						interfaceNodeObj,
 						packageName,
 						structuredKG)
 				} else if typeDefNode.Type() == "function_type" {
 					// Handle function type
-					functionNodeObj := addNode(kg, "function", typeName, filePath,
+					functionNodeObj := addNode("function", typeName, filePath,
 						typeNode.StartPoint(), typeNode.EndPoint(), "", packageName, structuredKG)
 
 					// Extract parameters and return types from the function type
@@ -188,7 +178,7 @@ func ProcessTypes(
 					}
 
 					if packageNode != nil {
-						addEdge(kg, packageNode, functionNodeObj, "has_function", structuredKG)
+						addEdge(packageNode, functionNodeObj, "has_function", structuredKG)
 
 						// Update the function data in the structured graph
 						for i, n := range structuredKG.Nodes {
@@ -212,10 +202,10 @@ func ProcessTypes(
 					}
 				} else {
 					// Remove temporary nodes as before
-					for _, n := range kg.Nodes {
+					for _, n := range structuredKG.Kg.Nodes {
 						if n.Type == "type_spec" && n.Name == typeName &&
 							n.PackageName == packageName && n.FilePath != filePath {
-							delete(kg.Nodes, fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line))
+							delete(structuredKG.Kg.Nodes, fmt.Sprintf("%s:%s:%s:%d", n.Type, n.Name, n.FilePath, n.Line))
 
 							for i := len(structuredKG.Nodes) - 1; i >= 0; i-- {
 								node := structuredKG.Nodes[i]
@@ -233,7 +223,6 @@ func ProcessTypes(
 					}
 					// Handle other types. e.g, enum
 					typeNodeObj := addNode(
-						kg,
 						"type_spec",
 						typeName,
 						filePath,
@@ -244,7 +233,7 @@ func ProcessTypes(
 						structuredKG,
 					)
 					if packageNode != nil {
-						addEdge(kg, packageNode, typeNodeObj, "has_type_spec", structuredKG)
+						addEdge(packageNode, typeNodeObj, "has_type_spec", structuredKG)
 					}
 				}
 			}
@@ -253,6 +242,6 @@ func ProcessTypes(
 
 	// Recursively process children
 	for i := 0; i < int(node.NamedChildCount()); i++ {
-		ProcessTypes(node.NamedChild(i), content, filePath, kg, debug, structuredKG)
+		ProcessTypes(node.NamedChild(i), content, filePath, debug, structuredKG)
 	}
 }

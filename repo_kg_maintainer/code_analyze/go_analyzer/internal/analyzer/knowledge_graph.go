@@ -154,6 +154,7 @@ type GraphEdge struct {
 type StructuredKnowledgeGraph struct {
 	Nodes []GraphNode `json:"nodes"`
 	Edges []GraphEdge `json:"edges"`
+	Kg    *KnowledgeGraph
 }
 
 // Node types to represent different elements

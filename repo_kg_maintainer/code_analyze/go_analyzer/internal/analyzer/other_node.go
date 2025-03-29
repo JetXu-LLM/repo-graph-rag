@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 
@@ -12,13 +13,12 @@ func ProcessOtherNodes(
 	node *sitter.Node,
 	content []byte,
 	filePath string,
-	kg *KnowledgeGraph,
 	debug bool,
 	structuredKG *StructuredKnowledgeGraph,
 ) {
 	// Find the package name first
 	var packageName string
-	for _, n := range kg.Nodes {
+	for _, n := range structuredKG.Kg.Nodes {
 		if n.Type == "package" && filepath.Dir(filePath) == n.FilePath {
 			packageName = n.Name
 			break
@@ -33,7 +33,6 @@ func ProcessOtherNodes(
 			if child.Type() == "package_clause" {
 				packageName := getNodeText(child.NamedChild(0), content)
 				pkgNode := addNode(
-					kg,
 					"package",
 					packageName,
 					filePath,
@@ -45,7 +44,7 @@ func ProcessOtherNodes(
 				)
 				pkgNode.PackageName = packageName // Set package name for package node
 			} else if child.Type() == "import_declaration" {
-				processImports(child, filePath, content, kg, packageName, structuredKG)
+				processImports(child, filePath, content, packageName, structuredKG)
 			}
 		}
 
@@ -72,7 +71,7 @@ func ProcessOtherNodes(
 
 						// Look for the actual struct definition file
 						var structFilePath string
-						for _, node := range kg.Nodes {
+						for _, node := range structuredKG.Kg.Nodes {
 							if node.Type == "type_spec" && node.Name == receiverType {
 								// Check if the node is in the same package
 								if node.PackageName == packageName || node.PackageName == "" {
@@ -95,7 +94,6 @@ func ProcessOtherNodes(
 						if typeNodeObj == nil {
 							fmt.Printf("Add temporary node %s:%s:%s\n", packageName, receiverType, filePath)
 							typeNodeObj = addNode(
-								kg,
 								"type_spec",
 								receiverType,
 								filePath,
@@ -108,7 +106,7 @@ func ProcessOtherNodes(
 						}
 
 						// Update parent_struct for existing function nodes with the same name
-						for _, n := range kg.Nodes {
+						for _, n := range structuredKG.Kg.Nodes {
 							if n.Type == "function" && n.Name == funcName &&
 								n.PackageName == packageName {
 								n.ParentStruct = parentStruct
@@ -134,7 +132,6 @@ func ProcessOtherNodes(
 
 		// Create function node
 		funcNode = addNode(
-			kg,
 			"function",
 			funcName,
 			filePath,
@@ -188,7 +185,7 @@ func ProcessOtherNodes(
 
 		// Create the edge for methods
 		if typeNodeObj != nil && node.Type() == "method_declaration" {
-			addEdge(kg, typeNodeObj, funcNode, "has_method", structuredKG)
+			addEdge(typeNodeObj, funcNode, "has_method", structuredKG)
 		}
 
 		// Process parameters
@@ -239,12 +236,12 @@ func ProcessOtherNodes(
 		// Process function body for function calls
 		body := node.ChildByFieldName("body")
 		if body != nil {
-			processFunctionBody(body, funcNode, content, kg, structuredKG)
+			processFunctionBody(body, funcNode, content, structuredKG)
 		}
 
 		// Find the package node for this file
 		var packageNode *Node
-		for _, n := range kg.Nodes {
+		for _, n := range structuredKG.Kg.Nodes {
 			if n.Type == "package" && filepath.Dir(filePath) == n.FilePath {
 				packageNode = n
 				break
@@ -253,7 +250,7 @@ func ProcessOtherNodes(
 
 		// Create has_function relationship if package node exists
 		if packageNode != nil && node.Type() == "function_declaration" {
-			addEdge(kg, packageNode, funcNode, "has_function", structuredKG)
+			addEdge(packageNode, funcNode, "has_function", structuredKG)
 		}
 
 	case "const_declaration":
@@ -288,7 +285,6 @@ func ProcessOtherNodes(
 										if typeName != "" {
 											// Create a node for the enum value
 											enumValueNode := addNode(
-												kg,
 												"enum_value",
 												constName,
 												filePath,
@@ -300,11 +296,10 @@ func ProcessOtherNodes(
 											)
 
 											// Look for the type node
-											for _, node := range kg.Nodes {
+											for _, node := range structuredKG.Kg.Nodes {
 												if node.Type == "type_spec" &&
 													node.Name == typeName {
 													addEdge(
-														kg,
 														node,
 														enumValueNode,
 														"has_value",
@@ -357,7 +352,6 @@ func ProcessOtherNodes(
 
 						// Create the variable node
 						varNodeObj := addNode(
-							kg,
 							"variable",
 							fmt.Sprintf("%s %s", varName, typeStr),
 							filePath,
@@ -374,9 +368,9 @@ func ProcessOtherNodes(
 
 						// Create references for each type
 						for _, refType := range referencedTypes {
-							for _, node := range kg.Nodes {
+							for _, node := range structuredKG.Kg.Nodes {
 								if node.Type == "type_spec" && node.Name == refType {
-									addEdge(kg, varNodeObj, node, "references", structuredKG)
+									addEdge(varNodeObj, node, "references", structuredKG)
 								}
 							}
 						}
@@ -393,7 +387,7 @@ func ProcessOtherNodes(
 			var typeNodeObj *Node
 
 			// Find the existing type node
-			for _, n := range kg.Nodes {
+			for _, n := range structuredKG.Kg.Nodes {
 				if n.Type == "type_spec" && n.Name == typeName {
 					typeNodeObj = n
 					typeNodeObj.Name = typeName
@@ -418,28 +412,44 @@ func ProcessOtherNodes(
 									embeddedTypeName = strings.TrimPrefix(embeddedTypeName, "*")
 
 									// Look for the embedded type in our nodes
-									for _, node := range kg.Nodes {
+									parentNodes := []*Node{}
+									for _, node := range structuredKG.Kg.Nodes {
 										if node.Type == "type_spec" &&
 											node.Name == embeddedTypeName {
-											addEdge(kg, typeNodeObj, node, "extends", structuredKG)
-											break
+											parentNodes = append(parentNodes, node)
+
 										}
+									}
+									if len(parentNodes) > 1 {
+										parentNode := FindTheRightNode(parentNodes, typeNodeObj)
+										addEdge(typeNodeObj, parentNode, "extends", structuredKG)
+									} else if len(parentNodes) == 1 {
+										addEdge(typeNodeObj, parentNodes[0], "extends", structuredKG)
 									}
 								} else {
 									// Build reference relationships for the field
 									typeName := getNodeText(typeRef, content)
 									referencedTypes := extractReferencedTypes(typeName)
-									for _, refType := range referencedTypes {
-										for _, node := range kg.Nodes {
-											if node.Type == "type_spec" && node.Name == refType {
-												// Build "references" relationships for the field node to struct node
-												fieldType := getNodeText(typeRef, content)
-												fieldName := getNodeText(nameNode, content)
-												fieldDesc := fmt.Sprintf("%s.%s %s", typeNodeObj.Name, fieldName, fieldType)
-												fieldNodeKey := fmt.Sprintf("%s:%s:%s:%d", FieldNode, fieldDesc, filePath, typeRef.StartPoint().Row+1)
-												if n, exists := kg.Nodes[fieldNodeKey]; exists {
-													addEdge(kg, n, node, "references", structuredKG)
+									fieldType := getNodeText(typeRef, content)
+									fieldName := getNodeText(nameNode, content)
+									fieldDesc := fmt.Sprintf("%s.%s %s", typeNodeObj.Name, fieldName, fieldType)
+									fieldNodeKey := fmt.Sprintf("%s:%s:%s:%d", FieldNode, fieldDesc, filePath, typeRef.StartPoint().Row+1)
+									if n, exists := structuredKG.Kg.Nodes[fieldNodeKey]; exists {
+										for _, refType := range referencedTypes {
+											refNodes := []*Node{}
+											for _, node := range structuredKG.Kg.Nodes {
+												if node.Type == "type_spec" && node.Name == refType {
+													// Build "references" relationships for the field node to struct node
+													refNodes = append(refNodes, node)
 												}
+											}
+											if len(refNodes) > 1 {
+												refNode := FindTheRightNode(refNodes, n)
+												addEdge(n, refNode, "references", structuredKG)
+											} else if len(refNodes) == 1 {
+												addEdge(n, refNodes[0], "references", structuredKG)
+											} else {
+												fmt.Printf("No refNodes found for %s\n", refType)
 											}
 										}
 									}
@@ -454,6 +464,46 @@ func ProcessOtherNodes(
 
 	// Recursively process children
 	for i := 0; i < int(node.NamedChildCount()); i++ {
-		ProcessOtherNodes(node.NamedChild(i), content, filePath, kg, debug, structuredKG)
+		ProcessOtherNodes(node.NamedChild(i), content, filePath, debug, structuredKG)
 	}
+}
+
+func FindTheRightNode(parentNodes []*Node, typeNodeObj *Node) *Node {
+	// Sometimes we have struct nodes with the same name but in different packages and files
+	// We need to find the parent node in the current package
+	// If the package name is main, we need to return the node with the shortest path from the current file
+	// Otherwise, we just return the first node
+	if typeNodeObj.PackageName == "main" {
+		shortestPath := math.MaxInt32
+		var shortestNode *Node
+		for _, node := range parentNodes {
+			distance := CalculateDistance(node.FilePath, typeNodeObj.FilePath)
+			if distance < shortestPath {
+				shortestPath = distance
+				shortestNode = node
+			}
+		}
+		return shortestNode
+	} else {
+		for _, node := range parentNodes {
+			if node.PackageName == typeNodeObj.PackageName {
+				return node
+			}
+		}
+	}
+	return parentNodes[0]
+}
+
+func CalculateDistance(path1 string, path2 string) int {
+	// Calculate the distance between two file paths
+	// The distance is the number of directories between the two file paths
+	distance := 0
+	parts1 := strings.Split(path1, "/")
+	parts2 := strings.Split(path2, "/")
+	for i := 0; i < len(parts1) && i < len(parts2); i++ {
+		if parts1[i] != parts2[i] {
+			distance++
+		}
+	}
+	return distance
 }
