@@ -11,7 +11,6 @@ import (
 func ParseFile(
 	filePath string,
 	parser *sitter.Parser,
-	kg *analyzer.KnowledgeGraph,
 	debug bool,
 	structuredKG *analyzer.StructuredKnowledgeGraph,
 ) error {
@@ -28,7 +27,7 @@ func ParseFile(
 	defer tree.Close()
 
 	// Use the new two-pass processing with debug flag
-	ProcessASTNodes(tree.RootNode(), content, filePath, kg, debug, structuredKG)
+	ProcessASTNodes(tree.RootNode(), content, filePath, debug, structuredKG)
 
 	return nil
 }
@@ -38,7 +37,6 @@ func ProcessASTNodes(
 	root *sitter.Node,
 	content []byte,
 	filePath string,
-	kg *analyzer.KnowledgeGraph,
 	debug bool,
 	structuredKG *analyzer.StructuredKnowledgeGraph,
 ) {
@@ -50,17 +48,17 @@ func ProcessASTNodes(
 	if debug {
 		fmt.Println("- Processing package declaration")
 	}
-	analyzer.ProcessPackageDecl(root, content, filePath, kg, structuredKG)
+	analyzer.ProcessPackageDecl(root, content, filePath, structuredKG)
 
 	// Second pass: Process all type declarations
 	if debug {
 		fmt.Println("- Processing type declarations")
 	}
-	analyzer.ProcessTypes(root, content, filePath, kg, debug, structuredKG)
+	analyzer.ProcessTypes(root, content, filePath, debug, structuredKG)
 
 	// Third pass: Process everything else
 	if debug {
 		fmt.Println("- Processing other nodes")
 	}
-	analyzer.ProcessOtherNodes(root, content, filePath, kg, debug, structuredKG)
+	analyzer.ProcessOtherNodes(root, content, filePath, debug, structuredKG)
 }

@@ -10,7 +10,6 @@ func processInterfaceMethods(
 	interfaceNode *sitter.Node,
 	content []byte,
 	filePath string,
-	kg *KnowledgeGraph,
 	parentTypeNode *Node,
 	packageName string,
 	structuredKG *StructuredKnowledgeGraph,
@@ -60,7 +59,6 @@ func processInterfaceMethods(
 						interfaceData.Methods, fmt.Sprintf("func %s%s%s", methodName, methodParams, methodReturns))
 					parentGraphNode.Data = interfaceData
 					addNode(
-						kg,
 						"interface_func",
 						fmt.Sprintf("%s.%s", interfaceData.InterfaceName, methodName),
 						filePath,

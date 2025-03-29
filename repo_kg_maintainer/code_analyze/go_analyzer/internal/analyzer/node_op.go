@@ -36,7 +36,7 @@ func getNodeType(nodeType string) NodeType {
 
 // addNode will update both the knowledge graph and the structured knowledge graph
 func addNode(
-	kg *KnowledgeGraph, nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
+	nodeType, name, filePath string, startPos sitter.Point, endPos sitter.Point,
 	parentStruct string, packageName string, structuredKG *StructuredKnowledgeGraph) *Node {
 	var key string
 	if nodeType == string(PackageNode) {
@@ -45,7 +45,7 @@ func addNode(
 	} else {
 		key = fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row+1)
 	}
-	if node, exists := kg.Nodes[key]; exists {
+	if node, exists := structuredKG.Kg.Nodes[key]; exists {
 		return node
 	}
 
@@ -60,7 +60,7 @@ func addNode(
 		ParentStruct: parentStruct,
 		PackageName:  packageName,
 	}
-	kg.Nodes[key] = node
+	structuredKG.Kg.Nodes[key] = node
 
 	// Add to structured graph
 	location := CodeLocation{
@@ -212,22 +212,25 @@ func getNodeText(node *sitter.Node, content []byte) string {
 
 func isBuiltinType(typeName string) bool {
 	builtinTypes := map[string]bool{
-		"string":  true,
-		"int":     true,
-		"int8":    true,
-		"int16":   true,
-		"int32":   true,
-		"int64":   true,
-		"uint":    true,
-		"uint8":   true,
-		"uint16":  true,
-		"uint32":  true,
-		"uint64":  true,
-		"float32": true,
-		"float64": true,
-		"bool":    true,
-		"byte":    true,
-		"rune":    true,
+		"string":    true,
+		"int":       true,
+		"int8":      true,
+		"int16":     true,
+		"int32":     true,
+		"int64":     true,
+		"uint":      true,
+		"uint8":     true,
+		"uint16":    true,
+		"uint32":    true,
+		"uint64":    true,
+		"float32":   true,
+		"float64":   true,
+		"bool":      true,
+		"byte":      true,
+		"rune":      true,
+		"time.Time": true,
+		"interface": true,
+		"error":     true,
 	}
 	return builtinTypes[typeName]
 }

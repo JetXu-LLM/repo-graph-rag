@@ -2,18 +2,19 @@ package analyzer
 
 import (
 	"fmt"
+	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
 )
 
 func processRegularField(
 	fieldName string, typeRef *sitter.Node, content []byte, filePath string,
-	kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string,
+	parentTypeNode *Node, parentTypeName string,
 	packageName string, structuredKG *StructuredKnowledgeGraph) {
 	fieldType := getNodeText(typeRef, content)
+	fieldType = strings.ReplaceAll(fieldType, " ", "")
 	fieldDesc := fmt.Sprintf("%s.%s %s", parentTypeName, fieldName, fieldType)
 	fieldNodeObj := addNode(
-		kg,
 		"field",
 		fieldDesc,
 		filePath,
@@ -26,7 +27,7 @@ func processRegularField(
 	fieldNodeObj.ParentStruct = parentTypeName
 
 	// Create has_field relationship
-	addEdge(kg, parentTypeNode, fieldNodeObj, "has_field", structuredKG)
+	addEdge(parentTypeNode, fieldNodeObj, "has_field", structuredKG)
 
 	// Update the parent struct's Fields array
 	fieldNodeID := generateNodeID(FieldNode, fieldDesc, filePath)

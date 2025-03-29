@@ -8,7 +8,7 @@ import (
 
 func processNestedStruct(
 	fieldName string, typePrefix string, structNode *sitter.Node, content []byte,
-	filePath string, kg *KnowledgeGraph, parentTypeNode *Node, parentTypeName string,
+	filePath string, parentTypeNode *Node, parentTypeName string,
 	packageName string, structuredKG *StructuredKnowledgeGraph) {
 	// Create a field node for the struct field itself
 	var fieldDesc string
@@ -21,7 +21,6 @@ func processNestedStruct(
 	}
 
 	fieldNodeObj := addNode(
-		kg,
 		"field",
 		fieldDesc,
 		filePath,
@@ -33,7 +32,7 @@ func processNestedStruct(
 	)
 	fieldNodeObj.ParentStruct = parentTypeName
 
-	addEdge(kg, parentTypeNode, fieldNodeObj, "has_field", structuredKG)
+	addEdge(parentTypeNode, fieldNodeObj, "has_field", structuredKG)
 
 	// Update the parent struct's Fields array
 	fieldNodeID := generateNodeID(FieldNode, fieldDesc, filePath)
@@ -50,7 +49,6 @@ func processNestedStruct(
 	// Create a type node for the nested struct
 	nestedTypeName := fieldName
 	nestedTypeNode := addNode(
-		kg,
 		"type_spec",
 		nestedTypeName,
 		filePath,
@@ -66,7 +64,6 @@ func processNestedStruct(
 		structNode,
 		content,
 		filePath,
-		kg,
 		nestedTypeNode,
 		nestedTypeName,
 		packageName,
@@ -78,7 +75,6 @@ func processStructFields(
 	structNode *sitter.Node,
 	content []byte,
 	filePath string,
-	kg *KnowledgeGraph,
 	parentTypeNode *Node,
 	parentTypeName string,
 	packageName string,
@@ -110,7 +106,6 @@ func processStructFields(
 							typeRef,
 							content,
 							filePath,
-							kg,
 							parentTypeNode,
 							parentTypeName,
 							packageName,
@@ -127,7 +122,6 @@ func processStructFields(
 								elementType,
 								content,
 								filePath,
-								kg,
 								parentTypeNode,
 								parentTypeName,
 								packageName,
@@ -140,7 +134,6 @@ func processStructFields(
 								typeRef,
 								content,
 								filePath,
-								kg,
 								parentTypeNode,
 								parentTypeName,
 								packageName,
@@ -160,7 +153,6 @@ func processStructFields(
 								valueType,
 								content,
 								filePath,
-								kg,
 								parentTypeNode,
 								parentTypeName,
 								packageName,
@@ -173,7 +165,6 @@ func processStructFields(
 								typeRef,
 								content,
 								filePath,
-								kg,
 								parentTypeNode,
 								parentTypeName,
 								packageName,
@@ -188,7 +179,6 @@ func processStructFields(
 							typeRef,
 							content,
 							filePath,
-							kg,
 							parentTypeNode,
 							parentTypeName,
 							packageName,

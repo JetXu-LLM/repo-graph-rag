@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -509,7 +510,13 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 							// Get the callee's file path from the Functions map
 							calleeFilePath := ""
 							found := false
-							for path, pkg := range a.Packages {
+							paths := []string{}
+							for path, _ := range a.Packages {
+								paths = append(paths, path)
+							}
+							sort.Strings(paths) // This is not correct really. We should sort by the distance from the caller package path.
+							for _, path := range paths {
+								pkg := a.Packages[path]
 								fmt.Printf("callee: %s, path: %s, pkg: %s\n", callee, path, pkg)
 								if strings.HasPrefix(callee, pkg+".") {
 									// Find the most specific match by walking the directory

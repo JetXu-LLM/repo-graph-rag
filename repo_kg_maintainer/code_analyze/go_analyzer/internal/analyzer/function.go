@@ -6,7 +6,6 @@ func processFunctionBody(
 	node *sitter.Node,
 	funcNode *Node,
 	content []byte,
-	kg *KnowledgeGraph,
 	structuredKG *StructuredKnowledgeGraph,
 ) {
 	cursor := sitter.NewTreeCursor(node)
@@ -20,7 +19,6 @@ func processFunctionBody(
 
 				// Add edge representing function call
 				calledFunc := addNode(
-					kg,
 					"function_call",
 					functionName,
 					funcNode.FilePath,
@@ -30,7 +28,7 @@ func processFunctionBody(
 					"",
 					structuredKG,
 				)
-				addEdge(kg, funcNode, calledFunc, "calls", structuredKG)
+				addEdge(funcNode, calledFunc, "calls", structuredKG)
 			}
 
 			if !cursor.GoToNextSibling() {

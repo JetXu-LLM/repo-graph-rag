@@ -8,7 +8,7 @@ import (
 )
 
 func processImports(
-	node *sitter.Node, filePath string, content []byte, kg *KnowledgeGraph,
+	node *sitter.Node, filePath string, content []byte,
 	packageName string, structuredKG *StructuredKnowledgeGraph) {
 	for i := 0; i < int(node.NamedChildCount()); i++ {
 		child := node.NamedChild(i)
@@ -33,7 +33,6 @@ func processImports(
 
 			// Create the import node
 			importNode := addNode(
-				kg,
 				"import",
 				importPath,
 				filePath,
@@ -57,7 +56,7 @@ func processImports(
 
 			// Find the package node for this file
 			var packageNode *Node
-			for _, n := range kg.Nodes {
+			for _, n := range structuredKG.Kg.Nodes {
 				if n.Type == "package" && filepath.Dir(filePath) == n.FilePath {
 					packageNode = n
 					break
@@ -66,7 +65,7 @@ func processImports(
 
 			// Create has_import relationship if package node exists
 			if packageNode != nil {
-				addEdge(kg, packageNode, importNode, "has_import", structuredKG)
+				addEdge(packageNode, importNode, "has_import", structuredKG)
 			}
 		}
 	}
