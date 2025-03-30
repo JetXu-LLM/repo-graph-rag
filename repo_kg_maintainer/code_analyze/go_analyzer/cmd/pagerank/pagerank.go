@@ -30,7 +30,8 @@ type NodeWeights struct {
 	MethodCount int `json:"method_count,omitempty"`
 
 	// Function-specific weights
-	CallCount int `json:"call_count,omitempty"`
+	CalleeCount int `json:"callee_count,omitempty"`
+	CallerCount int `json:"caller_count,omitempty"`
 }
 
 // CalculateWeights processes the knowledge graph and adds weight information
@@ -173,7 +174,12 @@ func calculateFunctionWeights(
 	for _, edge := range graph.Edges {
 		if edge.TargetID == id && edge.RelationType == analyzer.Calls {
 			if edge.SourceID != id { // Avoid counting self-recursive calls
-				wNode.Weights.CallCount++
+				wNode.Weights.CalleeCount++
+			}
+		}
+		if edge.SourceID == id && edge.RelationType == analyzer.Calls {
+			if edge.TargetID != id { // Avoid counting self-recursive calls
+				wNode.Weights.CallerCount++
 			}
 		}
 	}
@@ -201,6 +207,7 @@ func main() {
 	enrichedGraph := analyzer.StructuredKnowledgeGraph{
 		Nodes: make([]analyzer.GraphNode, len(graph.Nodes)),
 		Edges: graph.Edges,
+		Kg:    graph.Kg,
 	}
 
 	// Preserve all nodes, enrich only the relevant ones
