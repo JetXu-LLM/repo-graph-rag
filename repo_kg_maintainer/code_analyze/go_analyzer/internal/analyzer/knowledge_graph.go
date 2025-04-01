@@ -1,4 +1,45 @@
-package main
+package analyzer
+
+// Node represents a node in our knowledge graph
+type Node struct {
+	Type         string
+	Name         string
+	FilePath     string
+	Line         uint32
+	Column       uint32
+	EndLine      uint32
+	EndColumn    uint32
+	Parameters   []string
+	Returns      []string
+	PackageName  string
+	ParentStruct string
+}
+
+// Edge represents a relationship between two nodes
+type Edge struct {
+	From *Node
+	To   *Node
+	Type string // e.g., "calls", "imports", "implements"
+}
+
+// KnowledgeGraph represents our code structure
+// This struct is different from StructuredKnowledgeGraph defined in knowledge_graph.go
+// KnowledgeGraph is for debugging information. StructuredKnowledgeGraph is for final output knowledge_graph.json file
+type KnowledgeGraph struct {
+	// Nodes is a map of node ID to node
+	Nodes map[string]*Node
+	// Edges is a list of edges
+	Edges []*Edge
+}
+
+func NewKnowledgeGraph() *KnowledgeGraph {
+	return &KnowledgeGraph{
+		Nodes: make(map[string]*Node),
+		Edges: make([]*Edge, 0),
+	}
+}
+
+/* --- --- --- */
 
 type CodeLocation struct {
 	FilePath string `json:"file_path"`
@@ -34,6 +75,21 @@ type StructInfo struct {
 	StructName  string       `json:"struct_name"`
 	Fields      []string     `json:"fields"` // Array of Field ids
 	Location    CodeLocation `json:"location"`
+}
+
+type InterfaceInfo struct {
+	PackageName   string       `json:"package_name"`
+	InterfaceName string       `json:"interface_name"`
+	Extends       []string     `json:"extends"` // Array of Interface names
+	Methods       []string     `json:"methods"` // Array of Method ids
+	Location      CodeLocation `json:"location"`
+}
+
+type InterfaceFunction struct {
+	PackageName   string       `json:"package_name"`
+	InterfaceName string       `json:"interface_name"`
+	Method        string       `json:"method"`
+	Location      CodeLocation `json:"location"`
 }
 
 type MemberFunction struct {
@@ -98,18 +154,21 @@ type GraphEdge struct {
 type StructuredKnowledgeGraph struct {
 	Nodes []GraphNode `json:"nodes"`
 	Edges []GraphEdge `json:"edges"`
+	Kg    *KnowledgeGraph
 }
 
 // Node types to represent different elements
 type NodeType string
 
 const (
-	PackageNode   NodeType = "package"
-	StructNode    NodeType = "struct"
-	FunctionNode  NodeType = "function"
-	FieldNode     NodeType = "field"
-	VariableNode  NodeType = "variable"
-	EnumNode      NodeType = "enum"
-	EnumValueNode NodeType = "enum_value"
-	ImportNode    NodeType = "import"
+	PackageNode           NodeType = "package"
+	StructNode            NodeType = "struct"
+	InterfaceNode         NodeType = "interface"
+	FunctionNode          NodeType = "function"
+	InterfaceFunctionNode NodeType = "interface_func"
+	FieldNode             NodeType = "field"
+	VariableNode          NodeType = "variable"
+	EnumNode              NodeType = "enum"
+	EnumValueNode         NodeType = "enum_value"
+	ImportNode            NodeType = "import"
 )

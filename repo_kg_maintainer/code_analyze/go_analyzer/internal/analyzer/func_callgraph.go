@@ -1,4 +1,4 @@
-package main
+package analyzer
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -41,6 +42,12 @@ type VarInfo struct {
 	Position token.Pos  // Position in the file for scope resolution
 }
 
+// FunctionInfo stores information about a function's return type
+type FunctionInfo struct {
+	PackageName string
+	ReturnType  TypeInfo
+}
+
 // Analyzer maintains the state during analysis
 type Analyzer struct {
 	// Map of package paths to package names
@@ -70,23 +77,26 @@ type Analyzer struct {
 	GlobalVars map[string]VarInfo // Map of global variable names to their type info
 	// Track struct fields and their types
 	StructFields map[string]map[string]TypeInfo // Map of struct name -> field name -> type info
+	// Map of function name to its return type
+	FunctionReturnTypes map[string]FunctionInfo
 }
 
 // GenerateCallGraph takes a directory path and returns an array of call relationships
 func GenerateCallGraph(projectDir string) ([]Relationship, error) {
 	analyzer := &Analyzer{
-		Packages:      make(map[string]string),
-		Functions:     make(map[string]string),
-		Methods:       make(map[string]StructMethod),
-		Relationships: []Relationship{},
-		Imports:       make(map[string]string),
-		Types:         make(map[string]TypeInfo),
-		Variables:     make(map[string]VarInfo),
-		TypeAliases:   make(map[string]TypeInfo),
-		ImportedTypes: make(map[string]TypeInfo),
-		EmbeddedTypes: make(map[string][]TypeInfo),
-		GlobalVars:    make(map[string]VarInfo),
-		StructFields:  make(map[string]map[string]TypeInfo),
+		Packages:            make(map[string]string),
+		Functions:           make(map[string]string),
+		Methods:             make(map[string]StructMethod),
+		Relationships:       []Relationship{},
+		Imports:             make(map[string]string),
+		Types:               make(map[string]TypeInfo),
+		Variables:           make(map[string]VarInfo),
+		TypeAliases:         make(map[string]TypeInfo),
+		ImportedTypes:       make(map[string]TypeInfo),
+		EmbeddedTypes:       make(map[string][]TypeInfo),
+		GlobalVars:          make(map[string]VarInfo),
+		StructFields:        make(map[string]map[string]TypeInfo),
+		FunctionReturnTypes: make(map[string]FunctionInfo),
 	}
 
 	// First pass: collect all packages, functions, and methods
@@ -208,7 +218,11 @@ func (a *Analyzer) processTypeDeclaration(typeSpec *ast.TypeSpec, packageName st
 	}
 }
 
-func (a *Analyzer) processStructType(typeSpec *ast.TypeSpec, structType *ast.StructType, packageName string) {
+func (a *Analyzer) processStructType(
+	typeSpec *ast.TypeSpec,
+	structType *ast.StructType,
+	packageName string,
+) {
 	typeName := typeSpec.Name.Name
 
 	// Initialize field map for this struct if not exists
@@ -269,6 +283,15 @@ func (a *Analyzer) processFuncDeclaration(funcDecl *ast.FuncDecl, packageName st
 	// Add the function to our known functions map
 	if funcDecl.Recv == nil {
 		a.Functions[funcDecl.Name.Name] = packageName
+
+		// Store the return type if available
+		if funcDecl.Type.Results != nil && len(funcDecl.Type.Results.List) > 0 {
+			returnType := a.resolveTypeFromExpr(funcDecl.Type.Results.List[0].Type, packageName)
+			a.FunctionReturnTypes[funcDecl.Name.Name] = FunctionInfo{
+				PackageName: packageName,
+				ReturnType:  returnType,
+			}
+		}
 	}
 
 	// Create new scope for function
@@ -385,10 +408,8 @@ func (a *Analyzer) resolveExistingVariable(ident *ast.Ident) string {
 	// Then check other variables in current scope
 	if varInfo, ok := a.Variables[ident.Name]; ok {
 		// Check if the variable is in the current scope
-		if varInfo.Scope == a.CurrentScope {
-			if varInfo.Type.PackageName != "" {
-				return fmt.Sprintf("%s.%s", varInfo.Type.PackageName, varInfo.Type.TypeName)
-			}
+		if varInfo.Type.PackageName != "" {
+			return fmt.Sprintf("%s.%s", varInfo.Type.PackageName, varInfo.Type.TypeName)
 		}
 	}
 
@@ -504,9 +525,17 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 						if callee != "" {
 							// Get the callee's file path from the Functions map
 							calleeFilePath := ""
-							for path, pkg := range a.Packages {
+							found := false
+							paths := []string{}
+							for path, _ := range a.Packages {
+								paths = append(paths, path)
+							}
+							sort.Strings(paths) // This is not correct really. We should sort by the distance from the caller package path.
+							for _, path := range paths {
+								pkg := a.Packages[path]
 								if strings.HasPrefix(callee, pkg+".") {
 									// Find the most specific match by walking the directory
+									fmt.Printf("Found pkg: %s for callee: %s. Walking directory %s...\n", pkg, callee, path)
 									err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 										if err != nil {
 											return err
@@ -515,20 +544,34 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 											// Check if this file contains the callee
 											content, err := os.ReadFile(p)
 											if err == nil {
-												// Look for function declaration pattern: "func" followed by optional receiver, function name, and opening parenthesis
-												funcPattern := `func\s+(?:\([^)]+\)\s+)?` + regexp.QuoteMeta(strings.TrimPrefix(callee, pkg+".")) + `\(`
+												var funcPattern string
+												trimmedCallee := strings.TrimPrefix(callee, pkg+".")
+												if strings.Contains(trimmedCallee, ".") {
+													parts := strings.Split(trimmedCallee, ".")
+													structName := parts[0]
+													methodName := parts[1]
+													funcPattern = `func\s+\(\w+\s+(?:\*)?` + regexp.QuoteMeta(structName) + `\)\s+` + regexp.QuoteMeta(methodName) + `\(`
+												} else {
+													funcPattern = `func\s+(?:\([^)]+\)\s+)?` + regexp.QuoteMeta(trimmedCallee) + `\(`
+												}
 												matched, regexErr := regexp.Match(funcPattern, content)
 												if regexErr == nil && matched {
+													fmt.Printf("Found file: %s for callee: %s\n", p, callee)
 													calleeFilePath = p
+													found = true
 												}
 											}
 										}
 										return nil
 									})
+									if !found {
+										fmt.Printf("Not found file for callee: %s\n", callee)
+									} else {
+										break
+									}
 									if err != nil {
 										fmt.Printf("Error finding callee file: %v\n", err)
 									}
-									break
 								}
 							}
 
@@ -592,6 +635,8 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 		// Handle local function calls within the same package
 		if _, ok := a.Functions[x.Name]; ok {
 			return fmt.Sprintf("%s.%s", a.CurrentPackage, x.Name)
+		} else {
+			fmt.Printf("Not found function: %s\n", x.Name)
 		}
 		return ""
 
@@ -641,6 +686,8 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 				}
 				return fmt.Sprintf("%s.%s", varType, x.Sel.Name)
 			}
+		default:
+			fmt.Printf("Unknown type: %T\n", x)
 		}
 	}
 	return ""
@@ -681,6 +728,11 @@ func (a *Analyzer) inferTypeFromValue(expr ast.Expr) TypeInfo {
 		// Handle function calls that return values
 		switch fun := x.Fun.(type) {
 		case *ast.Ident:
+			// Look up the function's return type from our stored information
+			if funcInfo, ok := a.FunctionReturnTypes[fun.Name]; ok {
+				return funcInfo.ReturnType
+			}
+
 			// Handle built-in functions
 			switch fun.Name {
 			case "new":

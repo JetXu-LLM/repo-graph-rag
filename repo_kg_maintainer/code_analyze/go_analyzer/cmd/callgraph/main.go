@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/tengteng/go-code-analyzer/internal/analyzer"
 )
 
 func main() {
@@ -12,7 +14,7 @@ func main() {
 	}
 
 	projectDir := os.Args[1]
-	relationships, err := GenerateCallGraph(projectDir)
+	relationships, err := analyzer.GenerateCallGraph(projectDir)
 	if err != nil {
 		fmt.Printf("Error generating call graph: %v\n", err)
 		os.Exit(1)
