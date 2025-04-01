@@ -114,9 +114,24 @@ class PythonRelationExtractor:
                 seen_relations.add(rk)
                 relations.append(relation)
 
+        # Process class inheritance relations
         for rel in self._process_class_relations(tree, content, import_map, file_path):
             add_relation(rel)
+
+        # Process class instantiation relations
+        for rel in self._process_instantiation_relations(tree, content, import_map, file_path):
+            add_relation(rel)
+        
+        # Process method call relations
         for rel in self._process_call_relations(tree, content, import_map, file_path):
+            add_relation(rel)
+            
+        # Process global variable reference and modification relations
+        for rel in self._process_global_var_relations(tree, content, import_map, file_path):
+            add_relation(rel)
+            
+        # Process global function call relations
+        for rel in self._process_global_function_calls(tree, content, import_map, file_path):
             add_relation(rel)
 
         return [r for r in relations if self._is_valid_relation(r)]
@@ -625,9 +640,9 @@ class PythonRelationExtractor:
         
         # Log detailed information about the failed resolution
         self.logger.debug(f"Entity resolution failed for: {name}")
-        if import_map:
-            self.logger.debug(f"Available imports: {list(import_map.keys())}")
-        self.logger.debug(f"Available entities in current file: {list(current_entities.keys())}")
+        # if import_map:
+            # self.logger.debug(f"Available imports: {list(import_map.keys())}")
+        # self.logger.debug(f"Available entities in current file: {list(current_entities.keys())}")
         
         return None
     
@@ -658,32 +673,53 @@ class PythonRelationExtractor:
 
     def _find_qualified_entity(self, qualified_name: str) -> Optional[EntityInfo]:
         """
-        Searches all repo entities for matching qualified name.
-        Uses entity_by_key for efficient lookup instead of scanning repo_entities.
+        Enhanced method to find an entity by qualified name with strict context matching.
+        
+        Args:
+            qualified_name: Fully qualified name like "Class.method"
+            
+        Returns:
+            EntityInfo if found, None otherwise
         """
         normalized_name = qualified_name.replace('.', '/')
         
-        # Try to find direct match in entity_by_key
-        for entity_key, entity in self.entity_by_key.items():
-            key_parts = entity_key.split('/')
-            if len(key_parts) < 2:
-                continue
-                
-            # Extract entity name and parent from key
-            entity_name = key_parts[-1]
-            entity_parent = key_parts[-2] if len(key_parts) > 2 else None
-            
-            # Check for match with qualified name
-            entity_qualified = f"{entity_parent}/{entity_name}" if entity_parent else entity_name
-            if entity_qualified == normalized_name or entity_qualified.endswith('/' + normalized_name):
-                return entity
-                
-        # Fallback to original method if no match found
+        # First try: exact match with fully qualified name
         for entity in self.repo_entities:
             entity_qualified = f"{entity.parent_name}.{entity.name}" if entity.parent_name else entity.name
             if entity_qualified == qualified_name:
                 return entity
+        
+        # Second try: strict method matching with class context
+        if '.' in qualified_name:
+            class_name, method_name = qualified_name.split('.', 1)
+            
+            # Find methods that match both name and parent class exactly
+            for entity in self.repo_entities:
+                if (entity.entity_type == EntityType.METHOD.value and 
+                    entity.name == method_name and 
+                    entity.parent_name == class_name):
+                    return entity
+            
+            # If no exact match found, avoid cross-class method matching
+            self.logger.debug(f"No exact method match found for {qualified_name}")
+        
+        # Third try: for non-method entities or when class context is not critical
+        # This is useful for variables, classes, etc.
+        if not '.' in qualified_name or not any(e for e in self.repo_entities 
+                                            if e.entity_type == EntityType.METHOD.value and 
+                                                e.name == qualified_name.split('.')[-1]):
+            for entity_key, entity in self.entity_by_key.items():
+                key_parts = entity_key.split('/')
+                if len(key_parts) < 2:
+                    continue
+                    
+                entity_name = key_parts[-1]
+                entity_parent = key_parts[-2] if len(key_parts) > 2 else None
                 
+                entity_qualified = f"{entity_parent}/{entity_name}" if entity_parent else entity_name
+                if entity_qualified == normalized_name or entity_qualified.endswith('/' + normalized_name):
+                    return entity
+        
         return None
 
     def _find_repo_entity(self, entity_name: str, module_path: str) -> Optional[EntityInfo]:
@@ -1192,6 +1228,7 @@ class PythonRelationExtractor:
         def process_lambda_expression(node: tree_sitter.Node, parent_scope: str):
             """
             Process a lambda expression and extract call relationships from it.
+            Enhanced with better parameter type inference.
             
             Args:
                 node: The lambda expression node
@@ -1216,7 +1253,57 @@ class PythonRelationExtractor:
             # If no body or parameters found, return
             if not lambda_body:
                 return
+            
+            # Enhanced: Check if this lambda is immediately called
+            if node.parent and node.parent.type == 'parenthesized_expression' and node.parent.parent and node.parent.parent.type == 'call':
+                call_node = node.parent.parent
+                arg_list = call_node.child_by_field_name('argument_list')
                 
+                if arg_list and lambda_params:
+                    # Try to infer parameter types from arguments
+                    arg_index = 0
+                    param_index = 0
+                    
+                    for child in arg_list.children:
+                        if child.type in [',', '(', ')']:
+                            continue  # Skip syntax nodes
+                        
+                        # We only care about arguments that correspond to lambda parameters
+                        if param_index < len(lambda_params):
+                            param_name = lambda_params[param_index]
+                            
+                            # Try to determine argument type
+                            arg_type = None
+                            
+                            if child.type == 'call':
+                                # If argument is a call, process it and try to get its return type
+                                func_node = child.child_by_field_name('function')
+                                if func_node:
+                                    # Process the call first
+                                    process_call_node(child, parent_scope)
+                                    
+                                    # Then try to determine its return type
+                                    callee, _, return_type = self._resolve_call_chain(func_node, content, file_path)
+                                    
+                                    if return_type:
+                                        arg_type = return_type
+                                        self.logger.debug(f"Determined lambda param type from call return: {param_name} -> {arg_type}")
+                                    elif '.' in callee:
+                                        # If we know it's a class method call, use the class as type hint
+                                        class_name = callee.split('.')[0]
+                                        for entity in self.repo_entities:
+                                            if entity.entity_type == EntityType.CLASS.value and entity.name == class_name:
+                                                arg_type = class_name
+                                                self.logger.debug(f"Inferred lambda param type from class: {param_name} -> {arg_type}")
+                                                break
+                            
+                            # If we determined a type, store it
+                            if arg_type:
+                                self.variable_types.setdefault(file_path, {})[param_name] = arg_type
+                            
+                            param_index += 1
+                        arg_index += 1
+            
             # Process calls within lambda body
             if lambda_body.type == 'call':
                 process_call_node(lambda_body, parent_scope)
@@ -1225,9 +1312,51 @@ class PythonRelationExtractor:
             for child in lambda_body.children:
                 process_node(child, parent_scope)
                 
+            # Enhanced: If lambda body contains method calls on parameters, try to infer types
+            if lambda_params and lambda_body:
+                for param_name in lambda_params:
+                    # If we don't already know the type
+                    if param_name not in self.variable_types.get(file_path, {}):
+                        # Look for method calls on this parameter
+                        def find_method_calls(node, param_name):
+                            if node.type == 'call':
+                                func_node = node.child_by_field_name('function')
+                                if func_node and func_node.type == 'attribute':
+                                    obj_node = func_node.child_by_field_name('object')
+                                    if obj_node and obj_node.type == 'identifier':
+                                        obj_name = self._get_node_text(obj_node, content)
+                                        if obj_name == param_name:
+                                            attr_node = func_node.child_by_field_name('attribute')
+                                            if attr_node:
+                                                return self._get_node_text(attr_node, content)
+                            return None
+                        
+                        # Recursively search for method calls
+                        def search_node(node):
+                            method_name = find_method_calls(node, param_name)
+                            if method_name:
+                                # Find classes that have this method
+                                for entity in self.repo_entities:
+                                    if (entity.entity_type == EntityType.METHOD.value and 
+                                        entity.name == method_name and entity.parent_name):
+                                        # Set parameter type to the parent class of this method
+                                        self.variable_types.setdefault(file_path, {})[param_name] = entity.parent_name
+                                        self.logger.debug(f"Inferred lambda param type from method call: {param_name} -> {entity.parent_name}")
+                                        return True
+                            
+                            # Continue searching in children
+                            for child in node.children:
+                                if search_node(child):
+                                    return True
+                            return False
+                        
+                        # Start the search from lambda body
+                        search_node(lambda_body)
+                
         def process_list_comprehension(node: tree_sitter.Node, parent_scope: str):
             """
             Process a list comprehension and extract call relationships from it.
+            Enhanced with better type inference for iteration variables.
             
             Args:
                 node: The list comprehension node
@@ -1261,7 +1390,7 @@ class PythonRelationExtractor:
                 if iterable_expr and iterable_expr.type == 'call':
                     process_call_node(iterable_expr, parent_scope)
                     
-                    # Try to determine element type from iterable
+                    # Try to determine element type from iterable with enhanced inference
                     if iterator_var:
                         func_node = iterable_expr.child_by_field_name('function')
                         if func_node:
@@ -1282,12 +1411,51 @@ class PythonRelationExtractor:
                                 if element_type:
                                     self.variable_types.setdefault(file_path, {})[iterator_var] = element_type
                                     self.logger.debug(f"Set list comprehension iterator type: {iterator_var} -> {element_type}")
-                                # If we can't determine element type but know it's InternalClass
-                                elif iterable_callee.endswith('get_items') and 'InternalClass' in iterable_callee:
-                                    # This is a heuristic based on the test case
-                                    element_type = 'InternalClass'
-                                    self.variable_types.setdefault(file_path, {})[iterator_var] = element_type
-                                    self.logger.debug(f"Set list comprehension iterator type (heuristic): {iterator_var} -> {element_type}")
+                            
+                            # Enhanced: Use heuristic inference when return type annotation is not available
+                            if not iterable_return_type or not self.variable_types.get(file_path, {}).get(iterator_var):
+                                # Check if method name suggests it returns items/collection
+                                if func_node.type == 'attribute':
+                                    attr_node = func_node.child_by_field_name('attribute')
+                                    if attr_node:
+                                        method_name = self._get_node_text(attr_node, content)
+                                        # Heuristic for collection-returning methods
+                                        if any(hint in method_name.lower() for hint in ['get_item', 'items', 'list', 'collection', 'all']):
+                                            # Try to infer from object type or method context
+                                            obj_node = func_node.child_by_field_name('object')
+                                            if obj_node and obj_node.type == 'identifier':
+                                                obj_name = self._get_node_text(obj_node, content)
+                                                if obj_name == 'self' and self.current_scope:
+                                                    # Look for class attributes that might be collections
+                                                    for entity in self.repo_entities:
+                                                        if entity.entity_type == EntityType.CLASS.value:
+                                                            # Set a reasonable guess for iterator type
+                                                            self.variable_types.setdefault(file_path, {})[iterator_var] = entity.name
+                                                            self.logger.debug(f"Inferred list item type (heuristic): {iterator_var} -> {entity.name}")
+                                                            break
+                
+                # If we still don't have a type for the iterator, try more aggressive inference
+                if iterator_var and iterator_var not in self.variable_types.get(file_path, {}):
+                    # Look for method calls on the iterator in the expression
+                    if expr_node and expr_node.type == 'call':
+                        func_node = expr_node.child_by_field_name('function')
+                        if func_node and func_node.type == 'attribute':
+                            obj_node = func_node.child_by_field_name('object')
+                            if obj_node and obj_node.type == 'identifier':
+                                iter_name = self._get_node_text(obj_node, content)
+                                if iter_name == iterator_var:
+                                    # Get the method being called
+                                    attr_node = func_node.child_by_field_name('attribute')
+                                    if attr_node:
+                                        method_name = self._get_node_text(attr_node, content)
+                                        # Find classes that have this method
+                                        for entity in self.repo_entities:
+                                            if (entity.entity_type == EntityType.METHOD.value and 
+                                                entity.name == method_name and entity.parent_name):
+                                                # Set iterator type to the parent class of this method
+                                                self.variable_types.setdefault(file_path, {})[iterator_var] = entity.parent_name
+                                                self.logger.debug(f"Inferred type from method call: {iterator_var} -> {entity.parent_name}")
+                                                break
             
             # Process the expression part of the list comprehension
             if expr_node:
@@ -1449,6 +1617,8 @@ class PythonRelationExtractor:
         def process_call_node(node: tree_sitter.Node, parent_context: Optional[str] = None):
             """
             Process individual call node with enhanced type inference and chain call support.
+            Adds strict validation for method calls to ensure class context is respected,
+            while providing fallback mechanisms for complex scenarios.
             
             Args:
                 node: The call node to process
@@ -1523,11 +1693,44 @@ class PythonRelationExtractor:
             callee_chain, resolution_path, return_type = self._resolve_call_chain(node.child_by_field_name('function'), content, file_path)
             self.logger.debug(f"Raw callee chain: {callee_chain}")
             
-            # Try different resolution strategies
-            callee_ref = self._create_entity_reference(callee_chain, import_map, file_path)
-            if callee_ref:
-                self.logger.debug(f"Direct match found for {callee_chain}")
+            # Enhanced handling for method calls to prevent incorrect association
+            callee_ref = None
+            
+            # For method calls (containing a dot), ensure class context is respected
+            if '.' in callee_chain:
+                # Split into class and method parts
+                parts = callee_chain.split('.')
+                class_name = parts[0]
+                method_name = '.'.join(parts[1:])
+                
+                # First try: look for an exact match with the specific class
+                for entity in self.repo_entities:
+                    if (entity.entity_type == EntityType.METHOD.value and 
+                        entity.name == method_name and 
+                        entity.parent_name == class_name):
+                        callee_ref = self._entity_to_reference(entity, file_path)
+                        self.logger.debug(f"Found exact class method match: {class_name}.{method_name}")
+                        break
+                
+                # If not found with exact match, try the standard entity reference creation
+                if not callee_ref:
+                    callee_ref = self._create_entity_reference(callee_chain, import_map, file_path)
+                    
+                    # If we found something, double-check it actually belongs to the expected class
+                    if callee_ref and callee_ref.entity_type == EntityType.METHOD.value:
+                        # Make sure the parent class matches what was specified in the call
+                        if callee_ref.parent_name != class_name:
+                            self.logger.debug(
+                                f"Rejecting method call due to class mismatch: expected {class_name}.{method_name}, "
+                                f"got {callee_ref.parent_name}.{callee_ref.name}"
+                            )
+                            callee_ref = None
             else:
+                # For non-method calls, use standard resolution
+                callee_ref = self._create_entity_reference(callee_chain, import_map, file_path)
+            
+            # Try different fallback resolution strategies if needed
+            if not callee_ref:
                 self.logger.debug(f"No direct match for {callee_chain}, trying alternatives...")
                 
                 # Try additional resolution strategies
@@ -1596,6 +1799,54 @@ class PythonRelationExtractor:
                                 if callee_ref:
                                     callee_chain = candidate
                                     self.logger.debug(f"Resolved through parameter type: {callee_chain}")
+                
+                # Enhanced: Fallback for method calls on variables with unknown type
+                if not callee_ref and '.' in callee_chain:
+                    parts = callee_chain.split('.')
+                    obj_part = parts[0]
+                    method_name = parts[-1]
+                    
+                    # Try to find any method with this name and infer the class
+                    method_entities = []
+                    for entity in self.repo_entities:
+                        if entity.entity_type == EntityType.METHOD.value and entity.name == method_name and entity.parent_name:
+                            method_entities.append(entity)
+                    
+                    if method_entities:
+                        # If we have only one matching method, use it
+                        if len(method_entities) == 1:
+                            entity = method_entities[0]
+                            callee_ref = self._entity_to_reference(entity, file_path)
+                            callee_chain = f"{entity.parent_name}.{entity.name}"
+                            self.logger.debug(f"Inferred method call from unique method name: {callee_chain}")
+                            
+                            # Also update our variable type knowledge for future references
+                            self.variable_types.setdefault(file_path, {})[obj_part] = entity.parent_name
+                            self.logger.debug(f"Inferred variable type: {obj_part} -> {entity.parent_name}")
+            
+            # Enhanced: Special handling for method references (like handler = obj.method)
+            if not callee_ref and node.child_by_field_name('function') and node.child_by_field_name('function').type == 'identifier':
+                func_name = self._get_node_text(node.child_by_field_name('function'), content)
+                
+                # Check if this is a stored method reference
+                if hasattr(self, 'method_references') and file_path in self.method_references and func_name in self.method_references[file_path]:
+                    method_ref = self.method_references[file_path][func_name]
+                    
+                    # If the method reference is a qualified name (Class.method)
+                    if '.' in method_ref:
+                        parts = method_ref.split('.')
+                        class_name = parts[0]
+                        method_name = parts[-1]
+                        
+                        # Look for the method in repo entities
+                        for entity in self.repo_entities:
+                            if (entity.entity_type == EntityType.METHOD.value and 
+                                entity.name == method_name and 
+                                entity.parent_name == class_name):
+                                callee_ref = self._entity_to_reference(entity, file_path)
+                                callee_chain = method_ref
+                                self.logger.debug(f"Resolved method reference call: {func_name}() -> {callee_chain}")
+                                break
             
             # If still not resolved, give up
             if not callee_ref:
@@ -1645,6 +1896,16 @@ class PythonRelationExtractor:
                             if nested_return_type:
                                 arg_type = nested_return_type
                                 self.logger.debug(f"Determined argument type from nested call: {arg_type}")
+                            
+                            # Enhanced: If no return type but we know the callee, infer from class
+                            if not nested_return_type and '.' in nested_callee:
+                                class_name = nested_callee.split('.')[0]
+                                # Use class name as type hint
+                                for entity in self.repo_entities:
+                                    if entity.entity_type == EntityType.CLASS.value and entity.name == class_name:
+                                        arg_type = class_name
+                                        self.logger.debug(f"Inferred argument type from class: {arg_type}")
+                                        break
                     
                     # If we have parameter information for this function, track the argument type
                     if method_key:
@@ -1684,15 +1945,30 @@ class PythonRelationExtractor:
 
     def _is_valid_relation(self, relation: RelationInfo) -> bool:
         """
-        A relation is valid if both source and target keys exist in repo_entities.
-        Special handling for module-level entities.
-        Filter out relations where source is a Module type.
+        Improved method to validate a relation with more strict checks.
+        
+        A relation is valid if:
+        1. Source and target are not the same entity (prevents self-reference)
+        2. Both source and target entities exist in repo_entities
+        3. Special handling for module-level entities
+        
+        Args:
+            relation: The relation to validate
+            
+        Returns:
+            True if the relation is valid, False otherwise
         """
-        # Skip relations where source is a Module
-        if relation.source.entity_type == "Module":
+        # Prevent self-reference
+        if relation.source.key == relation.target.key:
+            self.logger.debug(f"Skipping self-reference: {relation.source.name}")
+            return False
+            
+        # Prevent module source relations (except for INSTANTIATES relations)
+        if relation.source.entity_type == "Module" and relation.relation_type != RelationType.INSTANTIATES:
             self.logger.debug(f"Skipping module source relation: {relation.source.name} -> {relation.target.name}")
             return False
             
+        # Validate source and target entities exist
         source_valid = relation.source.key in self.entity_by_key
         target_valid = relation.target.key in self.entity_by_key
         
@@ -1701,18 +1977,12 @@ class PythonRelationExtractor:
             self.logger.debug(f"  Source key '{relation.source.key}' exists: {source_valid}")
             self.logger.debug(f"  Target key '{relation.target.key}' exists: {target_valid}")
             
-            if not target_valid:
-                target_name = relation.target.name
-                similar_keys = [k for k in self.entity_by_key.keys() if target_name in k]
-                if similar_keys:
-                    self.logger.debug(f"  Similar target keys found: {similar_keys}")
-        
         return source_valid and target_valid
 
     def _track_object_attributes(self, tree: tree_sitter.Tree, content: str, file_path: str) -> None:
         """
         Track object attribute types by analyzing assignments like self.obj = Class()
-        This enhances type tracking for method calls on object attributes.
+        Enhanced to better track method references and variable types.
         
         Args:
             tree: The parsed AST tree
@@ -1764,11 +2034,11 @@ class PythonRelationExtractor:
                 var_name = self._get_node_text(node, content)
                 if var_name in self.variable_types.get(file_path, {}):
                     return self.variable_types[file_path][var_name]
-                    
+                
             return None
         
         def process_assignment(node: tree_sitter.Node) -> None:
-            """Process assignment node to extract object attribute types"""
+            """Process assignment node to extract object attribute types with enhanced tracking"""
             if node.type != 'assignment':
                 return
                 
@@ -1782,12 +2052,12 @@ class PythonRelationExtractor:
             if not right:
                 return
                 
-            # Track variable assignment to object method (handler = obj.method)
+            # Enhanced: Track variable assignment to object method (handler = obj.method)
             if left.type == 'identifier' and right.type == 'attribute':
                 var_name = self._get_node_text(left, content)
                 attr_text = self._get_node_text(right, content)
                 
-                # Store the method reference
+                # Store the method reference with enhanced tracking
                 self.method_references[file_path][var_name] = attr_text
                 self.logger.debug(f"Tracked method reference: {var_name} -> {attr_text}")
                 
@@ -1809,6 +2079,17 @@ class PythonRelationExtractor:
                             obj_type = self.variable_types[file_path][obj_name]
                         elif obj_name == 'self' and self.current_scope:
                             obj_type = self.current_scope
+                        
+                        # Enhanced: If we don't know the type but have a method name,
+                        # try to find classes that have this method
+                        if not obj_type and right.child_by_field_name('attribute'):
+                            method_name = self._get_node_text(right.child_by_field_name('attribute'), content)
+                            for entity in self.repo_entities:
+                                if (entity.entity_type == EntityType.METHOD.value and 
+                                    entity.name == method_name and entity.parent_name):
+                                    obj_type = entity.parent_name
+                                    self.logger.debug(f"Inferred object type from method: {obj_name} -> {obj_type}")
+                                    break
                     
                     # Store method reference type information
                     if obj_type:
@@ -1849,9 +2130,9 @@ class PythonRelationExtractor:
                             if class_name:
                                 self.object_types[obj_attr] = class_name
                                 self.logger.debug(f"Tracked object attribute type from expression: {obj_attr} -> {class_name}")
-            
+        
         def traverse(node: tree_sitter.Node) -> None:
-            """Traverse AST to find assignments"""
+            """Traverse AST to find assignments with enhanced tracking"""
             if node.type == 'assignment':
                 process_assignment(node)
                 
@@ -1943,3 +2224,333 @@ class PythonRelationExtractor:
                         return self._get_node_text(child, content)
             current = current.parent
         return None
+    
+    def _process_global_var_relations(self, tree: tree_sitter.Tree, content: str,
+                                    import_map: Dict[str, str],
+                                    file_path: str) -> List[RelationInfo]:
+        """
+        Process global variable references and modifications.
+        
+        Args:
+            tree: The parsed AST tree
+            content: The source code content
+            import_map: Mapping of imported names to their module paths
+            file_path: Path of the current file being processed
+            
+        Returns:
+            List of global variable relations extracted from the code
+        """
+        relations: List[RelationInfo] = []
+        processed_nodes = set()  # Track processed nodes to avoid duplicates
+        
+        # Get all global variables in this file
+        global_vars = {}
+        for entity_key, entity in self.entity_by_key.items():
+            if (entity.entity_type == "Variable" and 
+                entity.file_path == file_path and 
+                not entity.parent_name):  # No parent means it's a global variable
+                global_vars[entity.name] = entity
+        
+        self.logger.debug(f"Global variables in {file_path}: {list(global_vars.keys())}")
+        
+        def is_assignment_target(node: tree_sitter.Node) -> bool:
+            """Check if a node is the target of an assignment."""
+            parent = node.parent
+            if not parent:
+                return False
+                
+            if parent.type == 'assignment':
+                left = parent.child_by_field_name('left')
+                return left == node
+                
+            return False
+        
+        def process_identifier(node: tree_sitter.Node, scope: str):
+            """Process an identifier node that might be a global variable."""
+            # Skip if already processed
+            node_id = f"{node.start_point}:{node.end_point}"
+            if node_id in processed_nodes:
+                return
+            processed_nodes.add(node_id)
+            
+            # Get the identifier name
+            var_name = self._get_node_text(node, content)
+            
+            # Check if it's a global variable
+            if var_name not in global_vars:
+                return
+                
+            # Get the global variable entity
+            var_entity = global_vars[var_name]
+            var_ref = self._entity_to_reference(var_entity, file_path)
+            
+            # Get the caller context
+            caller_scope = scope or self._get_node_parent(node)
+            
+            # Skip if the identifier is in global scope (would create self-reference)
+            if not caller_scope:
+                return
+                
+            # Create caller reference
+            caller_ref = self._create_entity_reference(caller_scope, import_map, file_path)
+            if not caller_ref:
+                self.logger.debug(f"Caller reference not found for scope: {caller_scope}")
+                return
+                
+            # Determine relation type (USES or MODIFIES)
+            relation_type = RelationType.USES
+            if is_assignment_target(node):
+                relation_type = RelationType.MODIFIES
+                
+            # Create relation
+            relation = RelationInfo(
+                source=caller_ref,
+                target=var_ref,
+                relation_type=relation_type,
+                source_location=self._get_node_location(node),
+                target_location=self._get_node_location(node),
+                metadata={}
+            )
+            
+            # Add relation if it's valid
+            if self._is_valid_relation(relation):
+                relation_name = "MODIFIES" if relation_type == RelationType.MODIFIES else "USES"
+                self.logger.info(f"Found global variable relation: {caller_scope} {relation_name} {var_name}")
+                relations.append(relation)
+        
+        def traverse(node: tree_sitter.Node, scope: Optional[str] = None):
+            """Traverse the AST to find global variable references and modifications."""
+            # Get the current scope if not provided
+            if scope is None:
+                scope = self._get_node_parent(node)
+                
+            # Process current node if it's an identifier
+            if node.type == 'identifier':
+                process_identifier(node, scope)
+                
+            # Process children
+            for child in node.children:
+                # Skip syntax nodes
+                if child.type not in ['(', ')', '[', ']', '{', '}', ',', ';', ':', '.']:
+                    traverse(child, scope)
+        
+        # Start traversal from the root
+        traverse(tree.root_node)
+        
+        return relations
+    
+    def _process_global_function_calls(self, tree: tree_sitter.Tree, content: str,
+                                    import_map: Dict[str, str],
+                                    file_path: str) -> List[RelationInfo]:
+        """
+        Process global function call relationships.
+        
+        Args:
+            tree: The parsed AST tree
+            content: The source code content
+            import_map: Mapping of imported names to their module paths
+            file_path: Path of the current file being processed
+            
+        Returns:
+            List of global function call relations extracted from the code
+        """
+        relations: List[RelationInfo] = []
+        processed_nodes = set()  # Track processed nodes to avoid duplicates
+        
+        # Get all global functions in the repository
+        global_funcs = {}
+        for entity in self.repo_entities:
+            if (entity.entity_type == EntityType.METHOD.value and 
+                not entity.parent_name):  # No parent means it's a global function
+                global_funcs[entity.name] = entity
+        
+        self.logger.debug(f"Global functions found: {list(global_funcs.keys())}")
+        
+        def process_call(node: tree_sitter.Node, scope: str):
+            """Process a potential global function call."""
+            # Skip if already processed
+            node_id = f"{node.start_point}:{node.end_point}"
+            if node_id in processed_nodes:
+                return
+            processed_nodes.add(node_id)
+            
+            # Skip if not a call node
+            if node.type != 'call':
+                return
+                
+            # Get the function node
+            func_node = node.child_by_field_name('function')
+            if not func_node or func_node.type != 'identifier':
+                return
+                
+            # Get the function name
+            func_name = self._get_node_text(func_node, content)
+            
+            # Check if this is a global function
+            if func_name not in global_funcs:
+                return
+                
+            # Get the global function entity
+            func_entity = global_funcs[func_name]
+            func_ref = self._entity_to_reference(func_entity, file_path)
+            
+            # Get the caller context
+            caller_scope = scope or self._get_node_parent(node)
+            
+            # Skip if the call is in global scope (would create self-reference)
+            if not caller_scope:
+                return
+                
+            # Create caller reference
+            caller_ref = self._create_entity_reference(caller_scope, import_map, file_path)
+            if not caller_ref:
+                self.logger.debug(f"Caller reference not found for scope: {caller_scope}")
+                return
+                
+            # Create relation
+            relation = RelationInfo(
+                source=caller_ref,
+                target=func_ref,
+                relation_type=RelationType.CALLS,
+                source_location=self._get_node_location(node),
+                target_location=self._get_node_location(func_node),
+                metadata={}
+            )
+            
+            # Add relation if it's valid
+            if self._is_valid_relation(relation):
+                self.logger.info(f"Found global function call relation: {caller_scope} -> {func_name}")
+                relations.append(relation)
+        
+        def traverse(node: tree_sitter.Node, scope: Optional[str] = None):
+            """Traverse the AST to find global function calls."""
+            # Get the current scope if not provided
+            if scope is None:
+                scope = self._get_node_parent(node)
+                
+            # Process current node if it's a call
+            if node.type == 'call':
+                process_call(node, scope)
+                
+            # Process children
+            for child in node.children:
+                # Skip syntax nodes
+                if child.type not in ['(', ')', '[', ']', '{', '}', ',', ';', ':', '.']:
+                    traverse(child, scope)
+        
+        # Start traversal from the root
+        traverse(tree.root_node)
+        
+        return relations
+    
+    def _process_instantiation_relations(self, tree: tree_sitter.Tree, content: str,
+                                        import_map: Dict[str, str],
+                                        file_path: str) -> List[RelationInfo]:
+        """
+        Process class instantiation relationships using node traversal.
+        
+        Args:
+            tree: The parsed AST tree
+            content: The source code content
+            import_map: Mapping of imported names to their module paths
+            file_path: Path of the current file being processed
+            
+        Returns:
+            List of instantiation relations extracted from the code
+        """
+        relations: List[RelationInfo] = []
+        processed_nodes = set()  # Track processed nodes to avoid duplicates
+        
+        def process_instantiation(node: tree_sitter.Node, scope: str):
+            """Process a potential class instantiation node."""
+            # Skip if already processed
+            node_id = f"{node.start_point}:{node.end_point}"
+            if node_id in processed_nodes:
+                return
+            processed_nodes.add(node_id)
+            
+            # Check if this is a call node
+            if node.type != 'call':
+                return
+                
+            # Get the function node (potential class name)
+            func_node = node.child_by_field_name('function')
+            if not func_node or func_node.type != 'identifier':
+                return
+                
+            # Get the class name
+            class_name = self._get_node_text(func_node, content)
+            
+            # Check if this is a class (not a function call)
+            class_ref = None
+            for entity in self.repo_entities:
+                if entity.entity_type == EntityType.CLASS.value and entity.name == class_name:
+                    class_ref = self._entity_to_reference(entity, file_path)
+                    break
+                    
+            if not class_ref:
+                return  # Not a class instantiation
+                
+            # Get the caller context
+            caller_scope = scope or self._get_node_parent(node)
+            
+            # For global scope, use file name as context
+            if not caller_scope:
+                file_name = os.path.basename(file_path).split('.')[0]
+                caller_scope = f"<{file_name}_global>"
+                
+            # Create caller reference
+            caller_ref = None
+            if caller_scope.startswith("<") and caller_scope.endswith("_global>"):
+                # For global scope, use module as caller
+                module_name = caller_scope.strip("<>").replace("_global", "")
+                caller_ref = EntityReference(
+                    name=module_name,
+                    key=f"Module/{file_path}/{module_name}",
+                    entity_type="Module",
+                    parent_name=None,
+                    module_path=file_path,
+                    is_local=True
+                )
+            else:
+                caller_ref = self._create_entity_reference(caller_scope, import_map, file_path)
+                
+            if not caller_ref:
+                self.logger.debug(f"Caller reference not found for scope: {caller_scope}")
+                return
+                
+            # Create instantiation relation
+            relation = RelationInfo(
+                source=caller_ref,
+                target=class_ref,
+                relation_type=RelationType.INSTANTIATES,
+                source_location=self._get_node_location(node),
+                target_location=self._get_node_location(func_node),
+                metadata={}
+            )
+            
+            # Add relation if it's valid
+            if self._is_valid_relation(relation):
+                self.logger.info(f"Found instantiation relation: {caller_scope} -> {class_name}")
+                relations.append(relation)
+        
+        def traverse(node: tree_sitter.Node, scope: Optional[str] = None):
+            """Traverse the AST to find class instantiations."""
+            # Get the current scope if not provided
+            if scope is None:
+                scope = self._get_node_parent(node)
+                
+            # Process current node if it's a call
+            if node.type == 'call':
+                process_instantiation(node, scope)
+                
+            # Process children
+            for child in node.children:
+                # Skip syntax nodes
+                if child.type not in ['(', ')', '[', ']', '{', '}', ',', ';', ':', '.']:
+                    traverse(child, scope)
+        
+        # Start traversal from the root
+        traverse(tree.root_node)
+        
+        return relations

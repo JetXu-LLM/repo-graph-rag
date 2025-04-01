@@ -22,7 +22,6 @@ def main():
 
     # Get environment variables
     github_token = os.environ.get('GITHUB_ACCESS_TOKEN')
-    print(github_token)
     mistral_key = os.environ.get('MISTRAL_API_KEY')
     huggingface_token = os.environ.get('HUGGINGFACE_TOKEN')
     # mistral_key = os.environ.get('MISTRAL_API_KEY')

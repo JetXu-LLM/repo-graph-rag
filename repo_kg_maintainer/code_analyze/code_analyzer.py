@@ -26,6 +26,9 @@ class RelationType(Enum):
     DECORATES = "DECORATES"
     REFERENCES = "REFERENCES"
     IMPORTS = "IMPORTS"
+    USES = "USES"
+    MODIFIES = "MODIFIES"
+    INSTANTIATES = "INSTANTIATES"
 
 @dataclass
 class AnalysisContext:
