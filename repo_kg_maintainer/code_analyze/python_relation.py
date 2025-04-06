@@ -34,7 +34,10 @@ class PythonRelationExtractor:
         self.repo_entities = repo_entities
         self.entity_by_path: Dict[str, Dict[str, EntityInfo]] = {}
         self.entity_by_key: Dict[str, EntityInfo] = {}
+        self.relations: List[RelationInfo] = []
         self._build_entity_maps()
+
+        self.inheritance_map: Dict[str, List[str]] = {}  # class_name -> [parent_classes]
 
         # Tracking current file, scope (e.g. current class name), and function name (for parameter type)
         self.current_file: str = ""
@@ -61,6 +64,142 @@ class PythonRelationExtractor:
             # self.logger.debug(f"Adding entity: {qualified_name} from {normalized_path}")
 
         self.logger.debug(f"Current repo entities: {list(self.entity_by_key.keys())}")
+
+    def _process_class_relations(self, tree: tree_sitter.Tree, content: str,
+                                import_map: Dict[str, str],
+                                file_path: str) -> List[RelationInfo]:
+        """Process class inheritance relationships using node traversal."""
+        relations: List[RelationInfo] = []
+        stack = [tree.root_node]
+        
+        # For inheritance mapping in the current file
+        file_inheritance_map: Dict[str, List[str]] = {}
+        
+        def extract_base_class_name(node: tree_sitter.Node) -> Optional[str]:
+            """Recursively extract base class name with enhanced coverage."""
+            if node.type == "identifier":
+                return self._get_node_text(node, content)
+            elif node.type == "attribute":
+                obj = extract_base_class_name(node.child_by_field_name("object"))
+                attr = extract_base_class_name(node.child_by_field_name("attribute"))
+                return f"{obj}.{attr}" if obj and attr else None
+            elif node.type == "subscript":
+                base = extract_base_class_name(node.child_by_field_name("value"))
+                return base
+            elif node.type == "call":
+                return extract_base_class_name(node.child_by_field_name("function"))
+            elif node.type in ["tuple", "list", "dictionary"]:
+                return None
+            return None
+
+        while stack:
+            node = stack.pop()
+            
+            if node.type == "class_definition":
+                # Extract class name
+                class_name_node = node.child_by_field_name("name")
+                if not class_name_node:
+                    continue
+                class_name = self._get_node_text(class_name_node, content)
+                original_scope = self.current_scope
+                self.current_scope = class_name  # Update current scope
+                
+                # Extract base classes
+                base_class_nodes = []
+                base_list = node.child_by_field_name("superclasses")
+                if base_list and base_list.type == "argument_list":
+                    base_class_nodes = list(base_list.children)
+                
+                # Initialize parent class list for the current class
+                parent_classes = []
+                file_inheritance_map[class_name] = parent_classes
+                
+                for base_node in base_class_nodes:
+                    if base_node.type in [")", "(", ","]:
+                        continue  # Skip syntax nodes
+                    
+                    base_name = extract_base_class_name(base_node)
+                    if not base_name:
+                        continue
+                    
+                    # Add to parent class list
+                    parent_classes.append(base_name)
+                    
+                    # Create entity references
+                    class_ref = self._create_entity_reference(
+                        class_name, import_map, file_path)
+                    parent_ref = self._create_entity_reference(
+                        base_name, import_map, file_path)
+                    
+                    if class_ref and parent_ref:
+                        relations.append(RelationInfo(
+                            source=class_ref,
+                            target=parent_ref,
+                            relation_type=RelationType.INHERITS,
+                            source_location=self._get_node_location(class_name_node),
+                            target_location=self._get_node_location(base_node)
+                        ))
+                        self.logger.debug(f"Found inheritance: {class_name} -> {base_name}")
+                
+                self.current_scope = original_scope  # Restore original scope
+            
+            # Continue traversal
+            stack.extend(reversed(node.children))
+        
+        # Update global inheritance mapping
+        self.inheritance_map.update(file_inheritance_map)
+        
+        return relations
+    
+    def _get_parent_classes(self, class_name: str, file_path: str, import_map: Dict[str, str]) -> List[str]:
+        """
+        Get the parent classes of a given class.
+        
+        Args:
+            class_name: The name of the class
+            file_path: The file path where the class is used
+            import_map: Import mapping to resolve class names
+            
+        Returns:
+            List of parent class names
+        """
+        # Direct lookup from inheritance map
+        if class_name in self.inheritance_map:
+            parent_classes = self.inheritance_map[class_name]
+            if parent_classes:
+                self.logger.debug(f"Found parent classes for {class_name} in inheritance map: {parent_classes}")
+                return parent_classes
+        
+        # Check if class name is imported
+        for module_prefix, module_path in import_map.items():
+            if class_name.startswith(f"{module_prefix}."):
+                # Remove module prefix to get local name
+                local_name = class_name[len(module_prefix)+1:]
+                # Build possible qualified name
+                qualified_name = f"{module_path.replace('/', '.')}.{local_name}"
+                # Check if qualified name exists in inheritance map
+                if qualified_name in self.inheritance_map:
+                    self.logger.debug(f"Found parent classes for {class_name} through import: {self.inheritance_map[qualified_name]}")
+                    return self.inheritance_map[qualified_name]
+        
+        # If still not found, try to find through entity search
+        for entity_key, entity in self.entity_by_key.items():
+            if entity.entity_type == EntityType.CLASS.value and entity.name == class_name:
+                # Check for inheritance relations targeting this entity
+                for relation in self.relations:
+                    if (relation.relation_type == RelationType.INHERITS and 
+                        relation.source.name == class_name):
+                        self.logger.debug(f"Found parent class for {class_name} through relations: {relation.target.name}")
+                        return [relation.target.name]
+        
+        # Last resort: look for any class with this name
+        for class_key, parents in self.inheritance_map.items():
+            if class_key.endswith(f".{class_name}") or class_key == class_name:
+                self.logger.debug(f"Found parent classes for {class_name} through name matching: {parents}")
+                return parents
+        
+        self.logger.warning(f"No parent classes found for {class_name}")
+        return []
 
     def _generate_entity_key(self, entity_type: str, file_path: str, name: str, parent_name: Optional[str] = None) -> str:
         """Generate a unique key for an entity."""
@@ -96,6 +235,10 @@ class PythonRelationExtractor:
         self.current_scope = None
         self.current_function = None
 
+        # Initialize relations if not already done
+        if not hasattr(self, 'relations'):
+            self.relations = []
+
         # Track variable assignments, function parameters and return types.
         self._track_assignments(tree, content)
         self._track_function_params(tree, content)
@@ -113,6 +256,8 @@ class PythonRelationExtractor:
             if rk not in seen_relations:
                 seen_relations.add(rk)
                 relations.append(relation)
+                # Also store in instance variable for later use
+                self.relations.append(relation)
 
         # Process class inheritance relations
         for rel in self._process_class_relations(tree, content, import_map, file_path):
@@ -800,6 +945,9 @@ class PythonRelationExtractor:
         relations: List[RelationInfo] = []
         stack = [tree.root_node]
         
+        # For inheritance mapping in the current file
+        file_inheritance_map: Dict[str, List[str]] = {}
+        
         def extract_base_class_name(node: tree_sitter.Node) -> Optional[str]:
             """Recursively extract base class name with enhanced coverage."""
             if node.type == "identifier":
@@ -835,6 +983,10 @@ class PythonRelationExtractor:
                 if base_list and base_list.type == "argument_list":
                     base_class_nodes = list(base_list.children)
                 
+                # Initialize parent class list for the current class
+                parent_classes = []
+                file_inheritance_map[class_name] = parent_classes
+                
                 for base_node in base_class_nodes:
                     if base_node.type in [")", "(", ","]:
                         continue  # Skip syntax nodes
@@ -842,6 +994,9 @@ class PythonRelationExtractor:
                     base_name = extract_base_class_name(base_node)
                     if not base_name:
                         continue
+                    
+                    # Add to parent class list
+                    parent_classes.append(base_name)
                     
                     # Create entity references
                     class_ref = self._create_entity_reference(
@@ -864,6 +1019,10 @@ class PythonRelationExtractor:
             # Continue traversal
             stack.extend(reversed(node.children))
         
+        # Update global inheritance mapping
+        self.inheritance_map.update(file_inheritance_map)
+        self.logger.debug(f"Updated inheritance map with {len(file_inheritance_map)} classes")
+        
         return relations
     
     def _resolve_call_chain(self, node: tree_sitter.Node, content: str, file_path: str) -> Tuple[str, List[str], Optional[str]]:
@@ -873,6 +1032,7 @@ class PythonRelationExtractor:
         - Chained calls (a().b().c())
         - Type tracking (using pre-recorded variable types)
         - Return type tracking for chain calls
+        - Super() calls to parent class methods
         
         Args:
             node: The node to resolve
@@ -896,6 +1056,11 @@ class PythonRelationExtractor:
                 self.logger.debug(f"Found identifier: {identifier}")
                 parts.append(identifier)
                 resolution_path.append(f"identifier:{identifier}")
+                
+                # Handle super() identifier specifically
+                if identifier == "super" and len(parts) == 1:
+                    # This might be a super() call, will be confirmed when we process the call node
+                    resolution_path.append("potential_super_call")
                 
                 # Check if this identifier is a method reference first
                 if hasattr(self, 'method_references') and file_path in self.method_references and identifier in self.method_references[file_path]:
@@ -958,6 +1123,37 @@ class PythonRelationExtractor:
             elif current_node.type == 'call':
                 func_node = current_node.child_by_field_name('function')
                 resolution_path.append(f"call.function")
+                
+                # Special handling for super() calls
+                if func_node and func_node.type == 'identifier':
+                    func_name = self._get_node_text(func_node, content)
+                    if func_name == "super":
+                        resolution_path.append("super_call")
+                        
+                        # Get current class
+                        current_class = self._get_current_class_scope(current_node, content)
+                        if current_class:
+                            # Get parent classes
+                            self.logger.debug(f"Looking for parent classes of {current_class}")
+                            parent_classes = self._get_parent_classes(current_class, file_path, self.import_map)
+                            
+                            if parent_classes:
+                                # Use the first parent class (in single inheritance)
+                                parent_class = parent_classes[0]
+                                self.logger.debug(f"Resolved super() to parent class: {parent_class}")
+                                
+                                # If this is part of a chain like super().method()
+                                if current_node.parent and current_node.parent.type == 'attribute':
+                                    # The parent class will be used when processing the attribute
+                                    return_type = parent_class
+                                else:
+                                    # Otherwise, just return the parent class
+                                    parts = [parent_class]
+                                    break
+                            else:
+                                self.logger.warning(f"Could not find parent class for {current_class} in inheritance map: {self.inheritance_map}")
+                        else:
+                            self.logger.warning(f"super() call outside class context at {current_node.start_point}")
                 
                 # Check if this is a constructor call (Class())
                 if func_node and func_node.type == 'identifier':
@@ -1034,6 +1230,16 @@ class PythonRelationExtractor:
         # Rebuild call chain (reverse concatenation)
         full_chain = '.'.join(reversed(parts))
         self.logger.debug(f"Original call chain: {full_chain}")
+        
+        # Handle super().method() calls - if we identified a super call and have a return type (parent class)
+        if "super_call" in resolution_path and return_type and current_node and current_node.parent:
+            parent_node = current_node.parent
+            if parent_node.type == 'attribute':
+                attr_node = parent_node.child_by_field_name('attribute')
+                if attr_node:
+                    method_name = self._get_node_text(attr_node, content)
+                    full_chain = f"{return_type}.{method_name}"
+                    self.logger.debug(f"Resolved super().method() call to: {full_chain}")
         
         # Apply type inference (if available)
         if type_hint and len(parts) > 0:
@@ -1689,8 +1895,107 @@ class PythonRelationExtractor:
                 self.logger.debug(f"Caller reference not found for scope: {node_parent}")
                 return
                 
+            # Check for super() calls specifically
+            func_node = node.child_by_field_name('function')
+            if func_node:
+                # Case 1: Direct super() call
+                if func_node.type == 'identifier' and self._get_node_text(func_node, content) == 'super':
+                    self.logger.debug(f"Found direct super() call")
+                    
+                    # Get current class
+                    current_class = self._get_current_class_scope(node, content)
+                    if not current_class:
+                        self.logger.warning(f"super() call outside class context")
+                        return
+                        
+                    # Get parent classes
+                    parent_classes = self._get_parent_classes(current_class, file_path, import_map)
+                    if not parent_classes:
+                        self.logger.warning(f"No parent classes found for {current_class}")
+                        return
+                        
+                    # Use first parent class (simplification for multiple inheritance)
+                    parent_class = parent_classes[0]
+                    
+                    # If this is a standalone super() call (rare), create a relation to the parent class constructor
+                    if node.parent and node.parent.type != 'attribute':
+                        parent_constructor = f"{parent_class}.__init__"
+                        callee_ref = self._create_entity_reference(parent_constructor, import_map, file_path)
+                        
+                        if callee_ref and caller_ref:
+                            relation = RelationInfo(
+                                source=caller_ref,
+                                target=callee_ref,
+                                relation_type=RelationType.CALLS,
+                                source_location=self._get_node_location(node),
+                                target_location=self._get_node_location(func_node),
+                                metadata={
+                                    'is_method': True,
+                                    'is_super_call': True,
+                                    'parent_class': parent_class
+                                }
+                            )
+                            
+                            if self._is_valid_relation(relation):
+                                self.logger.info(f"Found super() call relation: {node_parent} -> {parent_constructor}")
+                                relations.append(relation)
+                        return
+                
+                # Case 2: super().method() pattern
+                elif func_node.type == 'attribute':
+                    obj_node = func_node.child_by_field_name('object')
+                    if obj_node and obj_node.type == 'call':
+                        inner_func = obj_node.child_by_field_name('function')
+                        if inner_func and inner_func.type == 'identifier' and self._get_node_text(inner_func, content) == 'super':
+                            self.logger.debug(f"Found super().method() call")
+                            
+                            # Get method name
+                            attr_node = func_node.child_by_field_name('attribute')
+                            if not attr_node:
+                                return
+                                
+                            method_name = self._get_node_text(attr_node, content)
+                            
+                            # Get current class
+                            current_class = self._get_current_class_scope(node, content)
+                            if not current_class:
+                                self.logger.warning(f"super() call outside class context")
+                                return
+                                
+                            # Get parent classes
+                            parent_classes = self._get_parent_classes(current_class, file_path, import_map)
+                            if not parent_classes:
+                                self.logger.warning(f"No parent classes found for {current_class}")
+                                return
+                                
+                            # Use first parent class (simplification for multiple inheritance)
+                            parent_class = parent_classes[0]
+                            parent_method = f"{parent_class}.{method_name}"
+                            
+                            # Create reference to parent method
+                            callee_ref = self._create_entity_reference(parent_method, import_map, file_path)
+                            
+                            if callee_ref and caller_ref:
+                                relation = RelationInfo(
+                                    source=caller_ref,
+                                    target=callee_ref,
+                                    relation_type=RelationType.CALLS,
+                                    source_location=self._get_node_location(node),
+                                    target_location=self._get_node_location(func_node),
+                                    metadata={
+                                        'is_method': True,
+                                        'is_super_call': True,
+                                        'parent_class': parent_class
+                                    }
+                                )
+                                
+                                if self._is_valid_relation(relation):
+                                    self.logger.info(f"Found super().method() call relation: {node_parent} -> {parent_method}")
+                                    relations.append(relation)
+                            return
+
             # Resolve call chain with enhanced type tracking
-            callee_chain, resolution_path, return_type = self._resolve_call_chain(node.child_by_field_name('function'), content, file_path)
+            callee_chain, resolution_path, return_type = self._resolve_call_chain(func_node, content, file_path)
             self.logger.debug(f"Raw callee chain: {callee_chain}")
             
             # Enhanced handling for method calls to prevent incorrect association
