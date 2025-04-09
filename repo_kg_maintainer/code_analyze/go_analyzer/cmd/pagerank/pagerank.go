@@ -5,45 +5,24 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/tengteng/go-code-analyzer/internal/analyzer"
 )
 
-// WeightedNode extends GraphNode with additional weight information
-type WeightedNode struct {
-	*analyzer.GraphNode
-	Weights NodeWeights `json:"weights"`
-}
-
-// NodeWeights stores various weight metrics for different node types
-type NodeWeights struct {
-	// Package-specific weights
-	StructCount   int `json:"struct_count,omitempty"`
-	FunctionCount int `json:"function_count,omitempty"`
-
-	// Common weights
-	CodeLineCount  int `json:"code_line_count,omitempty"`
-	ReferenceCount int `json:"reference_count,omitempty"`
-
-	// Struct-specific weights
-	FieldCount  int `json:"field_count,omitempty"`
-	MethodCount int `json:"method_count,omitempty"`
-
-	// Function-specific weights
-	CalleeCount int `json:"callee_count,omitempty"`
-	CallerCount int `json:"caller_count,omitempty"`
-}
-
 // CalculateWeights processes the knowledge graph and adds weight information
-func CalculateWeights(graph *analyzer.StructuredKnowledgeGraph) map[string]WeightedNode {
-	weightedNodes := make(map[string]WeightedNode)
+func CalculateWeights(
+	graph *analyzer.StructuredKnowledgeGraph) map[string]analyzer.WeightedNode {
+	weightedNodes := make(map[string]analyzer.WeightedNode)
 
 	// Initialize weighted nodes
 	for _, node := range graph.Nodes {
 		if shouldProcessNodeType(node.Type) {
-			weightedNodes[node.ID] = WeightedNode{
+			weightedNodes[node.ID] = analyzer.WeightedNode{
 				GraphNode: &node,
-				Weights:   NodeWeights{},
+				Weights: analyzer.NodeWeights{
+					Labels: make(map[analyzer.NodeLabel]bool),
+				},
 			}
 		}
 	}
@@ -58,6 +37,8 @@ func CalculateWeights(graph *analyzer.StructuredKnowledgeGraph) map[string]Weigh
 			calculateStructWeights(id, wNode, graph, weightedNodes)
 		case analyzer.FunctionNode:
 			calculateFunctionWeights(id, wNode, graph, weightedNodes)
+		case analyzer.InterfaceNode:
+			calculateInterfaceWeights(id, wNode, graph, weightedNodes)
 		}
 	}
 
@@ -66,14 +47,14 @@ func CalculateWeights(graph *analyzer.StructuredKnowledgeGraph) map[string]Weigh
 
 func shouldProcessNodeType(nodeType analyzer.NodeType) bool {
 	return nodeType == analyzer.PackageNode || nodeType == analyzer.StructNode ||
-		nodeType == analyzer.FunctionNode
+		nodeType == analyzer.FunctionNode || nodeType == analyzer.InterfaceNode
 }
 
 func calculatePackageWeights(
 	id string,
-	wNode WeightedNode,
+	wNode analyzer.WeightedNode,
 	graph *analyzer.StructuredKnowledgeGraph,
-	weightedNodes map[string]WeightedNode,
+	weightedNodes map[string]analyzer.WeightedNode,
 ) {
 	pkgData, ok := wNode.Data.(map[string]interface{})
 	if !ok {
@@ -83,6 +64,7 @@ func calculatePackageWeights(
 	if !ok || pkgName == "main" {
 		return // Skip main packages
 	}
+	pkgDirPath := pkgData["location"].(map[string]interface{})["file_path"].(string)
 
 	// Count structs and functions in the package
 	for _, node := range graph.Nodes {
@@ -107,14 +89,48 @@ func calculatePackageWeights(
 		}
 	}
 
+	// Count .go files in the package by traversing the file system
+	goFilesCount := 0
+	dir := pkgData["location"].(map[string]interface{})["file_path"].(string)
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		log.Fatalf("Error reading directory: %v", err)
+	}
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".go") {
+			goFilesCount++
+		}
+	}
+	wNode.Weights.GoFilesCount = goFilesCount
+
+	// Count imports in the package
+	for _, edge := range graph.Edges {
+		if edge.RelationType == analyzer.HasImport && edge.SourceID == id {
+			wNode.Weights.ImportCount++
+		}
+	}
+
+	// Count subpackages in the package
+	for _, node := range graph.Nodes {
+		if node.Type == analyzer.PackageNode {
+			d, ok := node.Data.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			subPkgDirPath := d["location"].(map[string]interface{})["file_path"].(string)
+			if strings.HasPrefix(subPkgDirPath, pkgDirPath) && subPkgDirPath != pkgDirPath {
+				wNode.Weights.SubpackageCount++
+			}
+		}
+	}
 	weightedNodes[id] = wNode
 }
 
 func calculateStructWeights(
 	id string,
-	wNode WeightedNode,
+	wNode analyzer.WeightedNode,
 	graph *analyzer.StructuredKnowledgeGraph,
-	weightedNodes map[string]WeightedNode,
+	weightedNodes map[string]analyzer.WeightedNode,
 ) {
 	structData, ok := wNode.Data.(map[string]interface{})
 	if !ok {
@@ -135,7 +151,7 @@ func calculateStructWeights(
 		wNode.Weights.FieldCount = len(fields)
 	}
 
-	// Count methods and references
+	// Count methods, references and instantiates
 	for _, edge := range graph.Edges {
 		if edge.SourceID == id {
 			if edge.RelationType == analyzer.HasMethod {
@@ -145,6 +161,9 @@ func calculateStructWeights(
 		if edge.TargetID == id && edge.RelationType == analyzer.References {
 			wNode.Weights.ReferenceCount++
 		}
+		if edge.TargetID == id && edge.RelationType == analyzer.Instantiates {
+			wNode.Weights.TotalInstanceCount++
+		}
 	}
 
 	weightedNodes[id] = wNode
@@ -152,9 +171,9 @@ func calculateStructWeights(
 
 func calculateFunctionWeights(
 	id string,
-	wNode WeightedNode,
+	wNode analyzer.WeightedNode,
 	graph *analyzer.StructuredKnowledgeGraph,
-	weightedNodes map[string]WeightedNode,
+	weightedNodes map[string]analyzer.WeightedNode,
 ) {
 	funcData, ok := wNode.Data.(map[string]interface{})
 	if !ok {
@@ -175,12 +194,45 @@ func calculateFunctionWeights(
 		if edge.TargetID == id && edge.RelationType == analyzer.Calls {
 			if edge.SourceID != id { // Avoid counting self-recursive calls
 				wNode.Weights.CalleeCount++
+			} else {
+				wNode.Weights.Labels[analyzer.SelfRecursiveFunc] = true
 			}
 		}
 		if edge.SourceID == id && edge.RelationType == analyzer.Calls {
 			if edge.TargetID != id { // Avoid counting self-recursive calls
 				wNode.Weights.CallerCount++
+			} else {
+				wNode.Weights.Labels[analyzer.SelfRecursiveFunc] = true
 			}
+		}
+		if edge.SourceID == id && edge.RelationType == analyzer.Instantiates {
+			wNode.Weights.InstantiatedByFunction++
+		}
+	}
+
+	weightedNodes[id] = wNode
+}
+
+func calculateInterfaceWeights(
+	id string,
+	wNode analyzer.WeightedNode,
+	graph *analyzer.StructuredKnowledgeGraph,
+	weightedNodes map[string]analyzer.WeightedNode,
+) {
+	interfaceData, ok := wNode.Data.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	// Count methods in the interface
+	if methods, ok := interfaceData["methods"].([]interface{}); ok {
+		wNode.Weights.MethodCount = len(methods)
+	}
+
+	// Count references to this interface
+	for _, edge := range graph.Edges {
+		if edge.TargetID == id && edge.RelationType == analyzer.References {
+			wNode.Weights.ReferenceCount++
 		}
 	}
 

@@ -61,6 +61,7 @@ type Function struct {
 	InputParams  string       `json:"input_params"`  // code string
 	ReturnParams string       `json:"return_params"` // code string
 	Location     CodeLocation `json:"location"`
+	IsGeneric    bool         `json:"is_generic"`
 }
 
 type FieldInfo struct {
@@ -75,6 +76,7 @@ type StructInfo struct {
 	StructName  string       `json:"struct_name"`
 	Fields      []string     `json:"fields"` // Array of Field ids
 	Location    CodeLocation `json:"location"`
+	IsGeneric   bool         `json:"is_generic"`
 }
 
 type InterfaceInfo struct {
@@ -124,14 +126,16 @@ type PackageInfo struct {
 type EdgeType string
 
 const (
-	HasStruct   EdgeType = "has_struct"
-	HasField    EdgeType = "has_field"
-	HasValue    EdgeType = "has_value"
-	HasMethod   EdgeType = "has_method"
-	HasFunction EdgeType = "has_function"
-	Extends     EdgeType = "extends"
-	References  EdgeType = "references"
-	Calls       EdgeType = "calls"
+	HasStruct    EdgeType = "has_struct"
+	HasField     EdgeType = "has_field"
+	HasValue     EdgeType = "has_value"
+	HasMethod    EdgeType = "has_method"
+	HasFunction  EdgeType = "has_function"
+	HasImport    EdgeType = "has_import"
+	Extends      EdgeType = "extends"
+	References   EdgeType = "references"
+	Calls        EdgeType = "calls"
+	Instantiates EdgeType = "instantiates"
 )
 
 // Rename Node to GraphNode
@@ -171,4 +175,56 @@ const (
 	EnumNode              NodeType = "enum"
 	EnumValueNode         NodeType = "enum_value"
 	ImportNode            NodeType = "import"
+)
+
+// WeightedNode will be used by pagerank and LLM
+// WeightedNode extends GraphNode with additional weight information
+type WeightedNode struct {
+	*GraphNode
+	Weights NodeWeights `json:"weights"`
+}
+
+// NodeWeights stores various weight metrics for different node types
+type NodeWeights struct {
+	// Common weights
+	CodeLineCount int `json:"code_line_count,omitempty"`
+
+	// Package-specific weights
+	// How many .go files in this package
+	GoFilesCount int `json:"go_files_count,omitempty"`
+	// How many structs in this package
+	StructCount int `json:"struct_count,omitempty"`
+	// How many functions in this package
+	FunctionCount int `json:"function_count,omitempty"`
+	// How many imports in this package
+	ImportCount int `json:"import_count,omitempty"`
+	// How many subpackages in this package
+	SubpackageCount int `json:"subpackage_count,omitempty"`
+
+	// Struct-specific weights
+	// How many fields this struct has
+	FieldCount int `json:"field_count,omitempty"`
+	// How many methods this struct has
+	MethodCount int `json:"method_count,omitempty"`
+	// How many instances for this struct are instantiated
+	TotalInstanceCount int `json:"total_instance_count,omitempty"`
+	// How many times this struct is referenced
+	ReferenceCount int `json:"reference_count,omitempty"`
+
+	// Function-specific weights
+	// How many times this function is called
+	CalleeCount int `json:"callee_count,omitempty"`
+	// How many functions this function is calling
+	CallerCount int `json:"caller_count,omitempty"`
+	// How many instances are instantiated by this function
+	InstantiatedByFunction int `json:"instantiated_by_function,omitempty"`
+
+	// Labels for the node
+	Labels map[NodeLabel]bool `json:"labels,omitempty"`
+}
+
+type NodeLabel string
+
+const (
+	SelfRecursiveFunc NodeLabel = "self_recursive_func"
 )

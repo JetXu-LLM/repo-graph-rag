@@ -3,6 +3,7 @@ package analyzer
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -98,6 +99,7 @@ func addNode(
 			StructName:  name,
 			Fields:      make([]string, 0),
 			Location:    location,
+			IsGeneric:   HasGenericType(name),
 		}
 		nodeID = generateNodeID(structNodeType, name, filePath)
 	case "interface":
@@ -117,6 +119,7 @@ func addNode(
 			InputParams:  "",
 			ReturnParams: "",
 			Location:     location,
+			IsGeneric:    HasGenericType(name),
 		}
 		nodeID = generateNodeID(structNodeType, name, filePath)
 	case "field":
@@ -235,24 +238,34 @@ func isBuiltinType(typeName string) bool {
 	return builtinTypes[typeName]
 }
 
-func FindNodeID(nodeIds mapset.Set[string], filePath string, nodeName string) (string, bool) {
+func FindNodeID(
+	nodeIds mapset.Set[string],
+	filePath string,
+	nodeName string,
+	relationType string,
+	nodeRole string,
+) (string, bool) {
 	sections := strings.Split(nodeName, ".")
 	var nodeId string
 	if len(sections) == 2 {
-		// package.function
-		funcName := sections[1]
-		nodeId = fmt.Sprintf("function:%s:%s", funcName, filePath)
-		if nodeIds.Contains(nodeId) {
-			return nodeId, true
+		if relationType == "instantiates" && nodeRole == "callee" {
+			// package.struct
+			structName := sections[1]
+			nodeId = fmt.Sprintf("struct:%s:%s", structName, filePath)
+		} else {
+			// package.function
+			funcName := sections[1]
+			nodeId = fmt.Sprintf("function:%s:%s", funcName, filePath)
 		}
 	} else if len(sections) == 3 {
 		// package.struct.function
 		funcName := sections[2]
 		structName := sections[1]
 		nodeId = fmt.Sprintf("function:%s.%s:%s", structName, funcName, filePath)
-		if nodeIds.Contains(nodeId) {
-			return nodeId, true
-		}
+
+	}
+	if nodeIds.Contains(nodeId) {
+		return nodeId, true
 	}
 	return "", false
 }
@@ -295,4 +308,9 @@ func FindInterfaceNode(interfaceMethodName string, nodes []GraphNode) (string, b
 		}
 	}
 	return "", false
+}
+
+func HasGenericType(typeName string) bool {
+	re := regexp.MustCompile(`\[(.*?)\]`)
+	return re.MatchString(typeName)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -65,18 +66,38 @@ func ProcessOtherNodes(
 					paramText := getNodeText(paramDecl, content)
 					parts := strings.Fields(paramText)
 					if len(parts) >= 1 {
-						receiverType := parts[len(parts)-1]
+						// Extract receiver type - handle cases where it might span multiple parts
+						// For a declaration like "(p Pair[K, V])" we need the full "Pair[K, V]"
+						receiverType := ""
+						if len(parts) == 1 {
+							// Single part - take it all (might be "Pair[K,V]")
+							receiverType = parts[0]
+						} else {
+							// The type is usually the last part, but check for special cases
+							// If parts contains brackets, we need to reconstruct the type carefully
+							if strings.Contains(paramText, "[") {
+								// Get everything after the variable name
+								typeStartIndex := 1 // Assume first part is the variable name
+								// Rejoin parts that may have been split by spaces
+								receiverType = strings.Join(parts[typeStartIndex:], " ")
+							} else {
+								// No generics, just take the last part
+								receiverType = parts[len(parts)-1]
+							}
+						}
+
+						// Now extract the base type name without generics
 						receiverType = strings.TrimPrefix(receiverType, "*")
 						funcName = fmt.Sprintf("%s.%s", receiverType, methodName)
 
 						// Look for the actual struct definition file
 						var structFilePath string
-						for _, node := range structuredKG.Kg.Nodes {
-							if node.Type == "type_spec" && node.Name == receiverType {
+						for _, kgNode := range structuredKG.Kg.Nodes {
+							if kgNode.Type == "type_spec" && kgNode.Name == receiverType {
 								// Check if the node is in the same package
-								if node.PackageName == packageName || node.PackageName == "" {
-									structFilePath = node.FilePath
-									typeNodeObj = node
+								if kgNode.PackageName == packageName || kgNode.PackageName == "" {
+									structFilePath = kgNode.FilePath
+									typeNodeObj = kgNode
 									break
 								}
 							}
@@ -92,7 +113,12 @@ func ProcessOtherNodes(
 
 						// If type node wasn't found in the current package, create a temporary one
 						if typeNodeObj == nil {
-							fmt.Printf("Add temporary node %s:%s:%s\n", packageName, receiverType, filePath)
+							fmt.Printf(
+								"Add temporary node %s:%s:%s\n",
+								packageName,
+								receiverType,
+								filePath,
+							)
 							typeNodeObj = addNode(
 								"type_spec",
 								receiverType,
@@ -116,7 +142,27 @@ func ProcessOtherNodes(
 				}
 			}
 		} else {
-			funcName = getNodeText(node.ChildByFieldName("name"), content)
+			// If function is a generic function, we need to get the base type name
+			funcNodeString := getNodeText(node, content)
+			// Use regex to get the name of the function and the type parameters
+			// Extract the function header (everything before the first '{')
+			headerRegex := regexp.MustCompile(`^(.*?){`)
+			headerMatch := headerRegex.FindStringSubmatch(funcNodeString)
+
+			if len(headerMatch) < 2 {
+				fmt.Println("Couldn't extract function header")
+				break
+			}
+			functionHeader := headerMatch[1]
+
+			// Extract function name and type parameters from the header
+			nameRegex := regexp.MustCompile(`func\s+(\w+)\s*\[(.*?)\]`)
+			matches := nameRegex.FindStringSubmatch(functionHeader)
+			if len(matches) == 3 {
+				funcName = fmt.Sprintf("%s[%s]", matches[1], matches[2])
+			} else {
+				funcName = getNodeText(node.ChildByFieldName("name"), content)
+			}
 		}
 
 		// Extract parameters and return type
@@ -159,6 +205,7 @@ func ProcessOtherNodes(
 								Col:      int(node.StartPoint().Column + 1),
 								LineEnd:  int(node.EndPoint().Row + 1),
 							},
+							IsGeneric: HasGenericType(funcName),
 						},
 						ParentStruct: parentStruct,
 					}
@@ -176,6 +223,7 @@ func ProcessOtherNodes(
 							Col:      int(node.StartPoint().Column + 1),
 							LineEnd:  int(node.EndPoint().Row + 1),
 						},
+						IsGeneric: HasGenericType(funcName),
 					}
 					structuredKG.Nodes[i].Data = funcData
 				}
@@ -368,9 +416,9 @@ func ProcessOtherNodes(
 
 						// Create references for each type
 						for _, refType := range referencedTypes {
-							for _, node := range structuredKG.Kg.Nodes {
-								if node.Type == "type_spec" && node.Name == refType {
-									addEdge(varNodeObj, node, "references", structuredKG)
+							for _, kgNode := range structuredKG.Kg.Nodes {
+								if kgNode.Type == "type_spec" && kgNode.Name == refType {
+									addEdge(varNodeObj, kgNode, "references", structuredKG)
 								}
 							}
 						}
@@ -383,7 +431,8 @@ func ProcessOtherNodes(
 		// Process embedded types and type relationships
 		typeNode := node.NamedChild(0)
 		if typeNode != nil {
-			typeName := getNodeText(typeNode.ChildByFieldName("name"), content)
+			typeDeclNodeString := getNodeText(typeNode, content)
+			typeName := ExtractTypeName(typeDeclNodeString, typeNode, content)
 			var typeNodeObj *Node
 
 			// Find the existing type node
@@ -413,11 +462,10 @@ func ProcessOtherNodes(
 
 									// Look for the embedded type in our nodes
 									parentNodes := []*Node{}
-									for _, node := range structuredKG.Kg.Nodes {
-										if node.Type == "type_spec" &&
-											node.Name == embeddedTypeName {
-											parentNodes = append(parentNodes, node)
-
+									for _, kgNode := range structuredKG.Kg.Nodes {
+										if kgNode.Type == "type_spec" &&
+											kgNode.Name == embeddedTypeName {
+											parentNodes = append(parentNodes, kgNode)
 										}
 									}
 									if len(parentNodes) > 1 {
@@ -437,10 +485,10 @@ func ProcessOtherNodes(
 									if n, exists := structuredKG.Kg.Nodes[fieldNodeKey]; exists {
 										for _, refType := range referencedTypes {
 											refNodes := []*Node{}
-											for _, node := range structuredKG.Kg.Nodes {
-												if node.Type == "type_spec" && node.Name == refType {
+											for _, kgNode := range structuredKG.Kg.Nodes {
+												if kgNode.Type == "type_spec" && kgNode.Name == refType {
 													// Build "references" relationships for the field node to struct node
-													refNodes = append(refNodes, node)
+													refNodes = append(refNodes, kgNode)
 												}
 											}
 											if len(refNodes) > 1 {
@@ -460,6 +508,17 @@ func ProcessOtherNodes(
 				}
 			}
 		}
+		// case "type_parameter_list", "type_arguments":
+		// 	// This implies that the type is a generic type. We need to mark this node as a generic type
+		// 	nodeText := getNodeText(node, content)
+		// 	// If nodeText is surrounded by brackets, then it is a generic type
+		// 	if strings.HasPrefix(nodeText, "[") && strings.HasSuffix(nodeText, "]") {
+		// 		// Get the parent's node's ID
+		// 		parentCode := getNodeText(node.Parent(), content)
+		// 	}
+
+		// default:
+		// fmt.Printf("Unknown node type: %s\tnode: %s\n", node.Type(), getNodeText(node, content))
 	}
 
 	// Recursively process children
@@ -506,4 +565,31 @@ func CalculateDistance(path1 string, path2 string) int {
 		}
 	}
 	return distance
+}
+
+func ExtractTypeName(typeDeclNodeString string, typeNode *sitter.Node, content []byte) string {
+	re := regexp.MustCompile(`(\w+)\[(.*?)\]\s+struct\s*{.*`)
+	var typeName string
+	matches := re.FindStringSubmatch(typeDeclNodeString)
+	if len(matches) >= 3 {
+		structName := matches[1]
+		fullTypeParams := matches[2]
+
+		// Extract just the parameter names (ignore constraints)
+		var paramNames []string
+		paramRegex := regexp.MustCompile(`(\w+)(?:\s+\w+)?`)
+		paramMatches := paramRegex.FindAllStringSubmatch(fullTypeParams, -1)
+
+		for _, match := range paramMatches {
+			if len(match) >= 2 {
+				paramNames = append(paramNames, match[1])
+			}
+		}
+		// Construct the simplified format
+		typeName = fmt.Sprintf("%s[%s]", structName,
+			strings.Join(paramNames, ", "))
+	} else {
+		typeName = getNodeText(typeNode.ChildByFieldName("name"), content)
+	}
+	return typeName
 }

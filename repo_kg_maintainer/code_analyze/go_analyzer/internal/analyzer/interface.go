@@ -35,7 +35,10 @@ func processInterfaceMethods(
 				for j := 0; j < int(interfaceMethodNode.NamedChildCount()); j++ {
 					extendedInterfaceNode := interfaceMethodNode.NamedChild(j)
 					if interfaceData, ok := parentGraphNode.Data.(InterfaceInfo); ok {
-						interfaceData.Extends = append(interfaceData.Extends, extendedInterfaceNode.Content(content))
+						interfaceData.Extends = append(
+							interfaceData.Extends,
+							extendedInterfaceNode.Content(content),
+						)
 						parentGraphNode.Data = interfaceData
 					}
 				}

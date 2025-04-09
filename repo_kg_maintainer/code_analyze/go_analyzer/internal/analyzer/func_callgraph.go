@@ -12,12 +12,13 @@ import (
 	"strings"
 )
 
-// Relationship represents a caller -> callee relationship
+// Relationship represents a relationship between two entities
 type Relationship struct {
 	Caller         string
 	Callee         string
 	CallerFilePath string
 	CalleeFilePath string
+	RelationType   string // "calls" or "instantiates"
 }
 
 // StructMethod keeps track of methods belonging to structs
@@ -30,6 +31,7 @@ type StructMethod struct {
 
 // TypeInfo stores information about a type
 type TypeInfo struct {
+	Filepath    string
 	PackageName string
 	TypeName    string
 	IsPointer   bool
@@ -44,6 +46,7 @@ type VarInfo struct {
 
 // FunctionInfo stores information about a function's return type
 type FunctionInfo struct {
+	Filepath    string
 	PackageName string
 	ReturnType  TypeInfo
 }
@@ -53,7 +56,7 @@ type Analyzer struct {
 	// Map of package paths to package names
 	Packages map[string]string
 	// Map of function or method name to its full qualified name
-	Functions map[string]string
+	Functions map[string]FunctionInfo
 	// Map of method name to struct it belongs to
 	Methods map[string]StructMethod
 	// List of discovered call relationships
@@ -85,7 +88,7 @@ type Analyzer struct {
 func GenerateCallGraph(projectDir string) ([]Relationship, error) {
 	analyzer := &Analyzer{
 		Packages:            make(map[string]string),
-		Functions:           make(map[string]string),
+		Functions:           make(map[string]FunctionInfo),
 		Methods:             make(map[string]StructMethod),
 		Relationships:       []Relationship{},
 		Imports:             make(map[string]string),
@@ -115,6 +118,18 @@ func GenerateCallGraph(projectDir string) ([]Relationship, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in first pass: %v", err)
 	}
+
+	/* DEBUG
+	fmt.Printf("analyzer.Packages: %+v\n", analyzer.Packages)
+	for typename, t := range analyzer.Types {
+		fmt.Printf("analyzer.Types: %s: %+v\n", typename, t)
+	}
+	for funcName, funcInfo := range analyzer.Functions {
+		fmt.Printf("analyzer.Functions: %s: %+v\n", funcName, funcInfo)
+	}
+	for methodName, methodInfo := range analyzer.Methods {
+		fmt.Printf("analyzer.Methods: %s: %+v\n", methodName, methodInfo)
+	} */
 
 	// Second pass: analyze function calls
 	err = filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
@@ -189,10 +204,13 @@ func (a *Analyzer) analyzeFileForDeclarations(filePath string) error {
 
 func (a *Analyzer) processTypeDeclaration(typeSpec *ast.TypeSpec, packageName string) {
 	typeName := typeSpec.Name.Name
+	fmt.Printf("processTypeDeclaration typeName: %s; packageName: %s\n", typeName, packageName)
+	fmt.Printf("typeSpec.Type: %+v\n", typeSpec.Type)
 
 	switch t := typeSpec.Type.(type) {
 	case *ast.StructType:
-		a.Types[typeName] = TypeInfo{
+		a.Types[fmt.Sprintf("%s.%s", packageName, typeName)] = TypeInfo{
+			Filepath:    a.FileSet.Position(typeSpec.Pos()).Filename,
 			PackageName: packageName,
 			TypeName:    typeName,
 			IsPointer:   false,
@@ -201,7 +219,8 @@ func (a *Analyzer) processTypeDeclaration(typeSpec *ast.TypeSpec, packageName st
 		a.processStructType(typeSpec, t, packageName)
 	case *ast.Ident:
 		// Handle type aliases
-		a.TypeAliases[typeName] = TypeInfo{
+		a.TypeAliases[fmt.Sprintf("%s.%s", packageName, typeName)] = TypeInfo{
+			Filepath:    a.FileSet.Position(typeSpec.Pos()).Filename,
 			PackageName: packageName,
 			TypeName:    t.Name,
 			IsPointer:   false,
@@ -209,11 +228,27 @@ func (a *Analyzer) processTypeDeclaration(typeSpec *ast.TypeSpec, packageName st
 	case *ast.StarExpr:
 		// Handle pointer type aliases
 		if ident, ok := t.X.(*ast.Ident); ok {
-			a.TypeAliases[typeName] = TypeInfo{
+			a.TypeAliases[fmt.Sprintf("%s.%s", packageName, typeName)] = TypeInfo{
+				Filepath:    a.FileSet.Position(typeSpec.Pos()).Filename,
 				PackageName: packageName,
 				TypeName:    ident.Name,
 				IsPointer:   true,
 			}
+		}
+	case *ast.InterfaceType:
+		a.Types[fmt.Sprintf("%s.%s", packageName, typeName)] = TypeInfo{
+			Filepath:    a.FileSet.Position(typeSpec.Pos()).Filename,
+			PackageName: packageName,
+			TypeName:    typeName,
+			IsPointer:   false,
+		}
+	default:
+		fmt.Printf("Unknown type: %T\n", t)
+		a.Types[fmt.Sprintf("%s.%s", packageName, typeName)] = TypeInfo{
+			Filepath:    a.FileSet.Position(typeSpec.Pos()).Filename,
+			PackageName: packageName,
+			TypeName:    typeName,
+			IsPointer:   false,
 		}
 	}
 }
@@ -282,7 +317,10 @@ func (a *Analyzer) processVarDeclaration(decl *ast.GenDecl, packageName string) 
 func (a *Analyzer) processFuncDeclaration(funcDecl *ast.FuncDecl, packageName string) {
 	// Add the function to our known functions map
 	if funcDecl.Recv == nil {
-		a.Functions[funcDecl.Name.Name] = packageName
+		a.Functions[fmt.Sprintf("%s.%s", packageName, funcDecl.Name.Name)] = FunctionInfo{
+			Filepath:    a.FileSet.Position(funcDecl.Pos()).Filename,
+			PackageName: packageName,
+		}
 
 		// Store the return type if available
 		if funcDecl.Type.Results != nil && len(funcDecl.Type.Results.List) > 0 {
@@ -304,7 +342,7 @@ func (a *Analyzer) processFuncDeclaration(funcDecl *ast.FuncDecl, packageName st
 			// Store method with receiver name
 			if len(field.Names) > 0 {
 				receiverName := field.Names[0].Name
-				a.Methods[funcDecl.Name.Name] = StructMethod{
+				a.Methods[fmt.Sprintf("%s.%s.%s", packageName, typeInfo.TypeName, funcDecl.Name.Name)] = StructMethod{
 					StructName:   typeInfo.TypeName,
 					MethodName:   funcDecl.Name.Name,
 					PackageName:  packageName,
@@ -393,7 +431,7 @@ func (a *Analyzer) resolveExistingVariable(ident *ast.Ident) string {
 		if len(parts) >= 2 {
 			// We're in a method, check if this is the receiver variable
 			structName := parts[len(parts)-2] // Get the struct name from current function
-			if method, ok := a.Methods[parts[len(parts)-1]]; ok {
+			if method, ok := a.Methods[fmt.Sprintf("%s.%s.%s", a.CurrentPackage, structName, parts[len(parts)-1])]; ok {
 				// Verify this is a method of the current struct
 				if method.StructName == structName && method.PackageName == a.CurrentPackage {
 					// If this is the receiver variable
@@ -437,7 +475,7 @@ func (a *Analyzer) resolveTypeFromExpr(expr ast.Expr, packageName string) TypeIn
 	switch t := expr.(type) {
 	case *ast.Ident:
 		// Check if it's a known type
-		if typeInfo, ok := a.Types[t.Name]; ok {
+		if typeInfo, ok := a.Types[fmt.Sprintf("%s.%s", packageName, t.Name)]; ok {
 			return typeInfo
 		}
 		// Check if it's an imported type
@@ -523,14 +561,13 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 					if call, ok := n.(*ast.CallExpr); ok {
 						callee := a.getCalleeName(call.Fun)
 						if callee != "" {
-							// Get the callee's file path from the Functions map
 							calleeFilePath := ""
 							found := false
 							paths := []string{}
 							for path, _ := range a.Packages {
 								paths = append(paths, path)
 							}
-							sort.Strings(paths) // This is not correct really. We should sort by the distance from the caller package path.
+							sort.Strings(paths)
 							for _, path := range paths {
 								pkg := a.Packages[path]
 								if strings.HasPrefix(callee, pkg+".") {
@@ -574,15 +611,75 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 									}
 								}
 							}
+							if !found {
+								calleeFunctionInfo, ok := a.Functions[callee]
+								if ok {
+									calleeFilePath = calleeFunctionInfo.Filepath
+								}
+							}
 
 							a.Relationships = append(a.Relationships, Relationship{
 								Caller:         a.CurrentFunction,
 								Callee:         callee,
 								CallerFilePath: filePath,
 								CalleeFilePath: calleeFilePath,
+								RelationType:   "calls",
 							})
 						}
 					}
+
+					// CASE 1: Direct struct instantiation (ABCStruct{...})
+					if compositeLit, ok := n.(*ast.CompositeLit); ok {
+						structType := a.getStructTypeName(compositeLit.Type)
+						if structType != "" {
+							if typeInfo, ok := a.Types[structType]; ok {
+								a.Relationships = append(a.Relationships, Relationship{
+									Caller:         a.CurrentFunction,
+									Callee:         structType,
+									CallerFilePath: filePath,
+									CalleeFilePath: typeInfo.Filepath,
+									RelationType:   "instantiates",
+								})
+							} else {
+								a.Relationships = append(a.Relationships, Relationship{
+									Caller:         a.CurrentFunction,
+									Callee:         structType,
+									CallerFilePath: filePath,
+									CalleeFilePath: "", // We can try to find this
+									RelationType:   "instantiates",
+								})
+							}
+						}
+					}
+
+					// CASE 2: Pointer struct instantiation (&ABCStruct{...})
+					if unaryExpr, ok := n.(*ast.UnaryExpr); ok {
+						if unaryExpr.Op == token.AND {
+							if compositeLit, ok := unaryExpr.X.(*ast.CompositeLit); ok {
+								structType := a.getStructTypeName(compositeLit.Type)
+								if structType != "" {
+									if typeInfo, ok := a.Types[structType]; ok {
+										a.Relationships = append(a.Relationships, Relationship{
+											Caller:         a.CurrentFunction,
+											Callee:         structType,
+											CallerFilePath: filePath,
+											CalleeFilePath: typeInfo.Filepath,
+											RelationType:   "instantiates",
+										})
+									} else {
+										a.Relationships = append(a.Relationships, Relationship{
+											Caller:         a.CurrentFunction,
+											Callee:         structType,
+											CallerFilePath: filePath,
+											CalleeFilePath: "", // We can try to find this
+											RelationType:   "instantiates",
+										})
+									}
+								}
+							}
+						}
+					}
+
 					return true
 				})
 			}
@@ -597,6 +694,7 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 			// Similar file path lookup for goroutines
 			calleeFilePath := ""
 			if callee != "anonymous goroutine" {
+				found := false
 				for path, pkg := range a.Packages {
 					if strings.HasPrefix(callee, pkg+".") {
 						// Similar file path lookup as above
@@ -605,12 +703,19 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 								content, err := os.ReadFile(p)
 								if err == nil && strings.Contains(string(content), strings.TrimPrefix(callee, pkg+".")) {
 									calleeFilePath = p
+									found = true
 									return filepath.SkipAll
 								}
 							}
 							return nil
 						})
 						break
+					}
+				}
+				if !found {
+					calleeFunctionInfo, ok := a.Functions[callee]
+					if ok {
+						calleeFilePath = calleeFunctionInfo.Filepath
 					}
 				}
 			}
@@ -620,7 +725,12 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 				Callee:         callee,
 				CallerFilePath: filePath,
 				CalleeFilePath: calleeFilePath,
+				RelationType:   "calls",
 			})
+		default:
+			if x != nil {
+				fmt.Printf("Unknown node: %T\n", x)
+			}
 		}
 		return true
 	})
@@ -633,7 +743,7 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 	switch x := expr.(type) {
 	case *ast.Ident:
 		// Handle local function calls within the same package
-		if _, ok := a.Functions[x.Name]; ok {
+		if _, ok := a.Functions[fmt.Sprintf("%s.%s", a.CurrentPackage, x.Name)]; ok {
 			return fmt.Sprintf("%s.%s", a.CurrentPackage, x.Name)
 		} else {
 			fmt.Printf("Not found function: %s\n", x.Name)
@@ -655,8 +765,13 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 
 		case *ast.Ident:
 			// Check if it's an imported package
-			if _, ok := a.Imports[inner.Name]; ok {
-				return fmt.Sprintf("%s.%s", inner.Name, x.Sel.Name)
+			if importPath, ok := a.Imports[inner.Name]; ok {
+				// Get the actual package name from the import path
+				parts := strings.Split(importPath, "/")
+				actualPkgName := parts[len(parts)-1]
+
+				// Return using the actual package name, not the alias
+				return fmt.Sprintf("%s.%s", actualPkgName, x.Sel.Name)
 			}
 
 			// Try to resolve the type of the variable
@@ -667,7 +782,7 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 					pkgName, typeName := parts[0], parts[1]
 
 					// Check if this type has the method
-					if method, ok := a.Methods[x.Sel.Name]; ok {
+					if method, ok := a.Methods[fmt.Sprintf("%s.%s.%s", pkgName, typeName, x.Sel.Name)]; ok {
 						if method.StructName == typeName {
 							return fmt.Sprintf("%s.%s.%s", pkgName, typeName, x.Sel.Name)
 						}
@@ -676,7 +791,7 @@ func (a *Analyzer) getCalleeName(expr ast.Expr) string {
 					// Check embedded types
 					if embedded, ok := a.EmbeddedTypes[typeName]; ok {
 						for _, embType := range embedded {
-							if method, ok := a.Methods[x.Sel.Name]; ok {
+							if method, ok := a.Methods[fmt.Sprintf("%s.%s.%s", embType.PackageName, embType.TypeName, x.Sel.Name)]; ok {
 								if method.StructName == embType.TypeName {
 									return fmt.Sprintf("%s.%s.%s", embType.PackageName, embType.TypeName, x.Sel.Name)
 								}
@@ -749,6 +864,7 @@ func (a *Analyzer) inferTypeFromValue(expr ast.Expr) TypeInfo {
 			if ident, ok := fun.X.(*ast.Ident); ok {
 				if _, ok := a.Imports[ident.Name]; ok {
 					return TypeInfo{
+						Filepath:    a.FileSet.Position(fun.Pos()).Filename,
 						PackageName: ident.Name,
 						TypeName:    fun.Sel.Name,
 					}
@@ -779,7 +895,7 @@ func (a *Analyzer) inferTypeFromValue(expr ast.Expr) TypeInfo {
 			}
 		}
 		// Check if it's a known type being used as a value
-		if typeInfo, ok := a.Types[x.Name]; ok {
+		if typeInfo, ok := a.Types[fmt.Sprintf("%s.%s", a.CurrentPackage, x.Name)]; ok {
 			return typeInfo
 		}
 
@@ -787,6 +903,7 @@ func (a *Analyzer) inferTypeFromValue(expr ast.Expr) TypeInfo {
 		// Handle package.Type expressions
 		if ident, ok := x.X.(*ast.Ident); ok {
 			return TypeInfo{
+				Filepath:    a.FileSet.Position(x.Pos()).Filename,
 				PackageName: ident.Name,
 				TypeName:    x.Sel.Name,
 			}
@@ -796,13 +913,13 @@ func (a *Analyzer) inferTypeFromValue(expr ast.Expr) TypeInfo {
 		// Handle basic literals
 		switch x.Kind {
 		case token.INT:
-			return TypeInfo{PackageName: "builtin", TypeName: "int"}
+			return TypeInfo{Filepath: a.FileSet.Position(x.Pos()).Filename, PackageName: "builtin", TypeName: "int"}
 		case token.FLOAT:
-			return TypeInfo{PackageName: "builtin", TypeName: "float64"}
+			return TypeInfo{Filepath: a.FileSet.Position(x.Pos()).Filename, PackageName: "builtin", TypeName: "float64"}
 		case token.STRING:
-			return TypeInfo{PackageName: "builtin", TypeName: "string"}
+			return TypeInfo{Filepath: a.FileSet.Position(x.Pos()).Filename, PackageName: "builtin", TypeName: "string"}
 		case token.CHAR:
-			return TypeInfo{PackageName: "builtin", TypeName: "rune"}
+			return TypeInfo{Filepath: a.FileSet.Position(x.Pos()).Filename, PackageName: "builtin", TypeName: "rune"}
 		}
 	}
 
@@ -947,4 +1064,25 @@ func (a *Analyzer) processTypeSwitchStmt(typeSwitch *ast.TypeSwitchStmt, package
 		// Restore the original scope
 		a.CurrentScope = oldScope
 	}
+}
+
+// getStructTypeName extracts the struct type name from an expression
+func (a *Analyzer) getStructTypeName(expr ast.Expr) string {
+	switch x := expr.(type) {
+	case *ast.Ident:
+		// Local struct type like "ABCStruct"
+		return fmt.Sprintf("%s.%s", a.CurrentPackage, x.Name)
+
+	case *ast.SelectorExpr:
+		// Imported struct type like "pkg.ABCStruct"
+		if ident, ok := x.X.(*ast.Ident); ok {
+			return fmt.Sprintf("%s.%s", ident.Name, x.Sel.Name)
+		}
+
+	case *ast.StarExpr:
+		// Pointer to struct type like "*ABCStruct"
+		return a.getStructTypeName(x.X)
+	}
+
+	return ""
 }
