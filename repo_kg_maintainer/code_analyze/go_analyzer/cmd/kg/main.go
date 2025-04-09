@@ -111,10 +111,13 @@ func main() {
 	// Add the call graph to the knowledge graph
 	existingCallEdges := mapset.NewSet[string]()
 	for _, relationship := range relationships {
+		rType := relationship.RelationType
 		callerID, exists := analyzer.FindNodeID(
 			nodeIds,
 			relationship.CallerFilePath,
 			relationship.Caller,
+			rType,
+			"caller",
 		)
 		if !exists {
 			fmt.Printf(
@@ -128,6 +131,8 @@ func main() {
 			nodeIds,
 			relationship.CalleeFilePath,
 			relationship.Callee,
+			rType,
+			"callee",
 		)
 		foundInterfaceCall := false
 		if !exists {
@@ -149,24 +154,33 @@ func main() {
 		if existingCallEdges.Contains(fmt.Sprintf("%s:%s", callerID, calleeID)) {
 			continue
 		}
-		if foundInterfaceCall {
+		if rType == "instantiates" {
 			structuredKG.Edges = append(structuredKG.Edges, analyzer.GraphEdge{
 				SourceType:   "function",
 				SourceID:     callerID,
-				TargetType:   "interface_function",
+				TargetType:   "struct",
 				TargetID:     calleeID,
-				RelationType: analyzer.Calls,
+				RelationType: analyzer.EdgeType(rType),
 			})
 		} else {
-			structuredKG.Edges = append(structuredKG.Edges, analyzer.GraphEdge{
-				SourceType:   "function",
-				SourceID:     callerID,
-				TargetType:   "function",
-				TargetID:     calleeID,
-				RelationType: analyzer.Calls,
-			})
+			if foundInterfaceCall {
+				structuredKG.Edges = append(structuredKG.Edges, analyzer.GraphEdge{
+					SourceType:   "function",
+					SourceID:     callerID,
+					TargetType:   "interface_function",
+					TargetID:     calleeID,
+					RelationType: analyzer.EdgeType(rType),
+				})
+			} else {
+				structuredKG.Edges = append(structuredKG.Edges, analyzer.GraphEdge{
+					SourceType:   "function",
+					SourceID:     callerID,
+					TargetType:   "function",
+					TargetID:     calleeID,
+					RelationType: analyzer.EdgeType(rType),
+				})
+			}
 		}
-
 		existingCallEdges.Add(fmt.Sprintf("%s:%s", callerID, calleeID))
 	}
 	// Save the structuredKG (which is a StructuredKnowledgeGraph) in knowledge_graph.json file

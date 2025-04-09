@@ -17,7 +17,8 @@ func ProcessTypes(
 	// Find the package name first
 	var packageName string
 	for _, n := range structuredKG.Nodes {
-		if n.Type == PackageNode && filepath.Dir(filePath) == n.Data.(PackageInfo).Location.FilePath {
+		if n.Type == PackageNode &&
+			filepath.Dir(filePath) == n.Data.(PackageInfo).Location.FilePath {
 			packageName = n.Data.(PackageInfo).PackageName
 			break
 		}
@@ -26,7 +27,8 @@ func ProcessTypes(
 	if node.Type() == "type_declaration" {
 		typeNode := node.NamedChild(0)
 		if typeNode != nil {
-			typeName := getNodeText(typeNode.ChildByFieldName("name"), content)
+			typeDeclNodeString := getNodeText(typeNode, content)
+			typeName := ExtractTypeName(typeDeclNodeString, typeNode, content)
 			if debug {
 				fmt.Printf("  Found type declaration: %s\n", typeName)
 			}
@@ -36,8 +38,9 @@ func ProcessTypes(
 			if typeDefNode != nil {
 				// Find the package node for this file first
 				var packageNode *Node
-				if packageNode, exists := structuredKG.Kg.Nodes[generateNodeID("package", packageName, filePath)]; exists {
-					packageNode = packageNode
+				pkgNodeID := generateNodeID("package", packageName, filePath)
+				if _, exists := structuredKG.Kg.Nodes[pkgNodeID]; exists {
+					packageNode = structuredKG.Kg.Nodes[pkgNodeID]
 				}
 
 				if typeDefNode.Type() == "struct_type" {
@@ -194,6 +197,7 @@ func ProcessTypes(
 										Col:      int(typeNode.StartPoint().Column + 1),
 										LineEnd:  int(typeNode.EndPoint().Row + 1),
 									},
+									IsGeneric: HasGenericType(typeName),
 								}
 								structuredKG.Nodes[i].Data = funcData
 								break
