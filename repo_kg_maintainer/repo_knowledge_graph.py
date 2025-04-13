@@ -468,11 +468,11 @@ class RepoKnowledgeGraph:
                     self._upsert_relationship(
                         source_id, 
                         target_id, 
-                        relation.relation_type.value,
+                        relation.relation_type,
                         metadata
                     )
 
-                    self.logger.info(f"Creating entity relationship {relation.relation_type.value}: {source_key} -> {target_key}")
+                    self.logger.info(f"Creating entity relationship {relation.relation_type}: {source_key} -> {target_key}")
                     
                     total_relations += 1
                     

@@ -65,6 +65,87 @@ class PythonRelationExtractor:
 
         self.logger.debug(f"Current repo entities: {list(self.entity_by_key.keys())}")
 
+    def _process_param_type_relations(self, tree: tree_sitter.Tree, content: str,
+                                    import_map: Dict[str, str],
+                                    file_path: str) -> List[RelationInfo]:
+        """
+        Process relationships between methods and their parameter types.
+        Creates USES relations for method parameters that are classes.
+        
+        Args:
+            tree: The parsed AST tree
+            content: The source code content
+            import_map: Mapping of imported names to their module paths
+            file_path: Path of the current file being processed
+            
+        Returns:
+            List of parameter type relations extracted from the code
+        """
+        relations: List[RelationInfo] = []
+        
+        # Process methods in the current file
+        for entity_key, entity in self.entity_by_key.items():
+            if entity.entity_type == EntityType.METHOD.value and entity.file_path == file_path:
+                method_name = entity.name
+                parent_name = entity.parent_name
+                qualified_name = f"{parent_name}.{method_name}" if parent_name else method_name
+                
+                # Get method reference
+                method_ref = self._entity_to_reference(entity, file_path)
+                
+                # Process parameter types
+                for param_key, param_type in self.param_types.get(file_path, {}).items():
+                    if param_key.startswith(f"{qualified_name}:"):
+                        # Try to resolve the parameter type to a class
+                        param_type_ref = self._create_entity_reference(param_type, import_map, file_path)
+                        if param_type_ref and param_type_ref.entity_type == EntityType.CLASS.value:
+                            self.logger.debug(f"Found parameter type relation: {qualified_name} -> {param_type}")
+                            relations.append(RelationInfo(
+                                source=method_ref,
+                                target=param_type_ref,
+                                relation_type=RelationType.USES.value,
+                                source_location=(0, 0),  # Simplified location
+                                target_location=(0, 0),
+                                metadata={'is_param_type': True}
+                            ))
+        
+        return relations
+
+    def _post_process_relations(self, relations: List[RelationInfo]) -> List[RelationInfo]:
+        """
+        Post-process relations to remove duplicates and apply priority rules.
+        When the same source-target pair has both CALLS and INSTANTIATES relations,
+        keep only the INSTANTIATES relation.
+        
+        Args:
+            relations: List of relations to process
+            
+        Returns:
+            Optimized list of relations with duplicates removed
+        """
+        # Create a mapping to track each source-target pair
+        relation_map = {}
+        
+        for relation in relations:
+            key = (relation.source.key, relation.target.key)
+            
+            if key in relation_map:
+                # Already have a relation with the same source and target
+                existing = relation_map[key]
+                
+                # If we have both CALLS and INSTANTIATES, prefer INSTANTIATES
+                if (relation.relation_type == RelationType.INSTANTIATES.value and 
+                    existing.relation_type == RelationType.CALLS.value and
+                    relation.target.entity_type == EntityType.CLASS.value):
+                    self.logger.debug(f"Replacing CALLS with INSTANTIATES: {relation.source.name} -> {relation.target.name}")
+                    relation_map[key] = relation
+                # Otherwise keep the existing relation
+            else:
+                relation_map[key] = relation
+        
+        # Return the optimized relations
+        return list(relation_map.values())
+
     def _process_class_relations(self, tree: tree_sitter.Tree, content: str,
                                 import_map: Dict[str, str],
                                 file_path: str) -> List[RelationInfo]:
@@ -135,7 +216,7 @@ class PythonRelationExtractor:
                         relations.append(RelationInfo(
                             source=class_ref,
                             target=parent_ref,
-                            relation_type=RelationType.INHERITS,
+                            relation_type=RelationType.INHERITS.value,
                             source_location=self._get_node_location(class_name_node),
                             target_location=self._get_node_location(base_node)
                         ))
@@ -187,7 +268,7 @@ class PythonRelationExtractor:
             if entity.entity_type == EntityType.CLASS.value and entity.name == class_name:
                 # Check for inheritance relations targeting this entity
                 for relation in self.relations:
-                    if (relation.relation_type == RelationType.INHERITS and 
+                    if (relation.relation_type == RelationType.INHERITS.value and 
                         relation.source.name == class_name):
                         self.logger.debug(f"Found parent class for {class_name} through relations: {relation.target.name}")
                         return [relation.target.name]
@@ -245,6 +326,7 @@ class PythonRelationExtractor:
         self._track_return_types(tree, content)
 
         import_map = self._build_import_map(tree, content, file_path)
+        self.import_map = import_map  # Store for use in other methods
 
         self.logger.debug(f"Import map: {import_map}")
 
@@ -279,7 +361,14 @@ class PythonRelationExtractor:
         for rel in self._process_global_function_calls(tree, content, import_map, file_path):
             add_relation(rel)
 
-        return [r for r in relations if self._is_valid_relation(r)]
+        # Add parameter type relations (NEW)
+        for rel in self._process_param_type_relations(tree, content, import_map, file_path):
+            add_relation(rel)
+
+        # Post-process relations to remove duplicates (NEW)
+        processed_relations = self._post_process_relations([r for r in relations if self._is_valid_relation(r)])
+        
+        return processed_relations
 
     def _build_import_map(self, tree: tree_sitter.Tree, content: str, file_path: str) -> Dict[str, str]:
         """
@@ -585,6 +674,12 @@ class PythonRelationExtractor:
                             key = f"{qualified_func}:{param_name}"
                             self.param_types[self.current_file][key] = type_text
 
+                        if param_name == "cls" and current_class:
+                            # For 'cls' parameter, always bind it to the current class
+                            key = f"{qualified_func}:{param_name}"
+                            self.param_types[self.current_file][key] = current_class
+                            self.logger.debug(f"Set cls parameter type to current class: {current_class}")
+
             stack.extend(reversed(node.children))
 
     def _track_return_types(self, tree: tree_sitter.Tree, content: str):
@@ -732,9 +827,33 @@ class PythonRelationExtractor:
                     return self._entity_to_reference(entity, file_path)
 
         # 6. Global qualified name search
-        if entity := self._find_qualified_entity(name):
-            self.logger.debug(f"Found global qualified match: {entity.parent_name} & {entity.name}")
-            return self._entity_to_reference(entity, file_path)
+        if '.' in name:
+            parts = name.split('.')
+            class_name, method_name = parts[0], '.'.join(parts[1:])
+            
+            # First try: exact match with class and method name
+            exact_match = None
+            for entity in self.repo_entities:
+                if (entity.entity_type == EntityType.METHOD.value and 
+                    entity.name == method_name and 
+                    entity.parent_name == class_name):
+                    exact_match = entity
+                    self.logger.debug(f"Found exact method match for {class_name}.{method_name}")
+                    return self._entity_to_reference(entity, file_path)
+            
+            # If no exact match found, continue with regular search
+            if not exact_match and (entity := self._find_qualified_entity(name)):
+                # Verify that the found method belongs to the expected class
+                if entity.entity_type == EntityType.METHOD.value and entity.parent_name != class_name:
+                    self.logger.debug(f"Rejecting method match due to class mismatch: expected {class_name}, got {entity.parent_name}")
+                else:
+                    self.logger.debug(f"Found global qualified match: {entity.parent_name} & {entity.name}")
+                    return self._entity_to_reference(entity, file_path)
+        else:
+            # Regular search for non-method entities
+            if entity := self._find_qualified_entity(name):
+                self.logger.debug(f"Found global qualified match: {entity.parent_name} & {entity.name}")
+                return self._entity_to_reference(entity, file_path)
 
         # 7. Check variable type inference
         if hasattr(self, 'variable_types') and file_path in self.variable_types and name in self.variable_types[file_path]:
@@ -914,9 +1033,16 @@ class PythonRelationExtractor:
                     parts = entity_name.split(".")
                     class_name, method_name = parts[0], parts[-1]
                     
+                    # First try strict matching of both class name and method name
                     for entity in entities.values():
                         if entity.name == method_name and entity.parent_name == class_name:
+                            self.logger.debug(f"Found exact match for {class_name}.{method_name} in {entity_path}")
                             return entity
+                    
+                    # If no exact match found, DO NOT return any partial match
+                    # This prevents incorrect associations
+                    self.logger.debug(f"No exact match found for {class_name}.{method_name} in {entity_path}")
+                    return None
                 
                 # Try qualified name match
                 for qualified_name, entity in entities.items():
@@ -1008,7 +1134,7 @@ class PythonRelationExtractor:
                         relations.append(RelationInfo(
                             source=class_ref,
                             target=parent_ref,
-                            relation_type=RelationType.INHERITS,
+                            relation_type=RelationType.INHERITS.value,
                             source_location=self._get_node_location(class_name_node),
                             target_location=self._get_node_location(base_node)
                         ))
@@ -1057,13 +1183,21 @@ class PythonRelationExtractor:
                 parts.append(identifier)
                 resolution_path.append(f"identifier:{identifier}")
                 
+                # Special handling for 'cls' parameter in class methods
+                if identifier == "cls":
+                    # When 'cls' is used, it should always refer to the current class
+                    current_class = self._get_current_class_scope(node, content)
+                    if current_class:
+                        type_hint = current_class
+                        return_type = current_class
+                        self.logger.debug(f"Setting cls type to current class: {type_hint}")
                 # Handle super() identifier specifically
-                if identifier == "super" and len(parts) == 1:
+                elif identifier == "super" and len(parts) == 1:
                     # This might be a super() call, will be confirmed when we process the call node
                     resolution_path.append("potential_super_call")
                 
                 # Check if this identifier is a method reference first
-                if hasattr(self, 'method_references') and file_path in self.method_references and identifier in self.method_references[file_path]:
+                elif hasattr(self, 'method_references') and file_path in self.method_references and identifier in self.method_references[file_path]:
                     method_ref = self.method_references[file_path][identifier]
                     self.logger.debug(f"Found method reference for {identifier}: {method_ref}")
                     # Return the full method reference directly
@@ -1071,7 +1205,7 @@ class PythonRelationExtractor:
                 
                 # Check if this identifier has a known type from various sources
                 # 1. Variable type mapping
-                if identifier in self.variable_types.get(file_path, {}):
+                elif identifier in self.variable_types.get(file_path, {}):
                     type_hint = self.variable_types[file_path][identifier]
                     self.logger.debug(f"Found type hint for {identifier}: {type_hint}")
                     # Set return type if this is a class name
@@ -1227,6 +1361,14 @@ class PythonRelationExtractor:
                 resolution_path.append(f"unhandled:{current_node.type}")
                 break
                 
+        # Apply type inference for cls parameter - ensure it always refers to current class
+        if len(parts) == 1 and parts[0] == "cls":
+            current_class = self._get_current_class_scope(node, content)
+            if current_class:
+                full_chain = current_class
+                self.logger.debug(f"Overriding cls reference to current class: {full_chain}")
+                return full_chain, resolution_path, current_class
+        
         # Rebuild call chain (reverse concatenation)
         full_chain = '.'.join(reversed(parts))
         self.logger.debug(f"Original call chain: {full_chain}")
@@ -1405,7 +1547,7 @@ class PythonRelationExtractor:
             relation = RelationInfo(
                 source=caller_ref,
                 target=callee_ref,
-                relation_type=RelationType.CALLS,
+                relation_type=RelationType.CALLS.value,
                 source_location=self._get_node_location(node),
                 target_location=self._get_node_location(func_node),
                 metadata={
@@ -1920,13 +2062,23 @@ class PythonRelationExtractor:
                     # If this is a standalone super() call (rare), create a relation to the parent class constructor
                     if node.parent and node.parent.type != 'attribute':
                         parent_constructor = f"{parent_class}.__init__"
-                        callee_ref = self._create_entity_reference(parent_constructor, import_map, file_path)
                         
-                        if callee_ref and caller_ref:
+                        # ENHANCED: Directly create the target reference without using _create_entity_reference
+                        # to avoid potential mismatches
+                        parent_constructor_ref = None
+                        for entity in self.repo_entities:
+                            if (entity.entity_type == EntityType.METHOD.value and 
+                                entity.name == "__init__" and 
+                                entity.parent_name == parent_class):
+                                parent_constructor_ref = self._entity_to_reference(entity, file_path)
+                                self.logger.debug(f"Found exact parent constructor match: {parent_class}.__init__")
+                                break
+                        
+                        if parent_constructor_ref and caller_ref:
                             relation = RelationInfo(
                                 source=caller_ref,
-                                target=callee_ref,
-                                relation_type=RelationType.CALLS,
+                                target=parent_constructor_ref,
+                                relation_type=RelationType.CALLS.value,
                                 source_location=self._get_node_location(node),
                                 target_location=self._get_node_location(func_node),
                                 metadata={
@@ -1970,16 +2122,23 @@ class PythonRelationExtractor:
                                 
                             # Use first parent class (simplification for multiple inheritance)
                             parent_class = parent_classes[0]
-                            parent_method = f"{parent_class}.{method_name}"
                             
-                            # Create reference to parent method
-                            callee_ref = self._create_entity_reference(parent_method, import_map, file_path)
+                            # ENHANCED: Directly search for the parent method entity
+                            # to avoid potential mismatches
+                            parent_method_ref = None
+                            for entity in self.repo_entities:
+                                if (entity.entity_type == EntityType.METHOD.value and 
+                                    entity.name == method_name and 
+                                    entity.parent_name == parent_class):
+                                    parent_method_ref = self._entity_to_reference(entity, file_path)
+                                    self.logger.debug(f"Found exact parent method match: {parent_class}.{method_name}")
+                                    break
                             
-                            if callee_ref and caller_ref:
+                            if parent_method_ref and caller_ref:
                                 relation = RelationInfo(
                                     source=caller_ref,
-                                    target=callee_ref,
-                                    relation_type=RelationType.CALLS,
+                                    target=parent_method_ref,
+                                    relation_type=RelationType.CALLS.value,
                                     source_location=self._get_node_location(node),
                                     target_location=self._get_node_location(func_node),
                                     metadata={
@@ -1990,7 +2149,7 @@ class PythonRelationExtractor:
                                 )
                                 
                                 if self._is_valid_relation(relation):
-                                    self.logger.info(f"Found super().method() call relation: {node_parent} -> {parent_method}")
+                                    self.logger.info(f"Found super().method() call relation: {node_parent} -> {parent_class}.{method_name}")
                                     relations.append(relation)
                             return
 
@@ -2157,13 +2316,29 @@ class PythonRelationExtractor:
             if not callee_ref:
                 self.logger.warning(f"Failed to resolve callee from candidates: {candidates}")
                 return
+        
+            # Enhanced: Special handling for instantiation of subclasses
+            if callee_ref and callee_ref.entity_type == EntityType.CLASS.value:
+                # Check if this is a direct class instantiation
+                if func_node and func_node.type == 'identifier':
+                    class_name = self._get_node_text(func_node, content)
+                    
+                    # Make sure we're using the concrete class, not a parent class
+                    for entity_key, entity in self.entity_by_key.items():
+                        if (entity.entity_type == EntityType.CLASS.value and 
+                            entity.name == class_name):
+                            # Use the concrete class reference
+                            callee_ref = self._entity_to_reference(entity, file_path)
+                            callee_chain = class_name
+                            self.logger.debug(f"Using concrete class for instantiation: {class_name}")
+                            break
             
             # Create relation
             self.logger.info(f"Found call relation: {node_parent} -> {callee_chain}")
             relation = RelationInfo(
                 source=caller_ref,
                 target=callee_ref,
-                relation_type=RelationType.CALLS,
+                relation_type=RelationType.CALLS.value,
                 source_location=self._get_node_location(node),
                 target_location=self._get_node_location(node.child_by_field_name('function')),
                 metadata={
@@ -2269,7 +2444,7 @@ class PythonRelationExtractor:
             return False
             
         # Prevent module source relations (except for INSTANTIATES relations)
-        if relation.source.entity_type == "Module" and relation.relation_type != RelationType.INSTANTIATES:
+        if relation.source.entity_type == "Module" and relation.relation_type != RelationType.INSTANTIATES.value:
             self.logger.debug(f"Skipping module source relation: {relation.source.name} -> {relation.target.name}")
             return False
             
@@ -2603,9 +2778,9 @@ class PythonRelationExtractor:
                 return
                 
             # Determine relation type (USES or MODIFIES)
-            relation_type = RelationType.USES
+            relation_type = RelationType.USES.value
             if is_assignment_target(node):
-                relation_type = RelationType.MODIFIES
+                relation_type = RelationType.MODIFIES.value
                 
             # Create relation
             relation = RelationInfo(
@@ -2619,7 +2794,7 @@ class PythonRelationExtractor:
             
             # Add relation if it's valid
             if self._is_valid_relation(relation):
-                relation_name = "MODIFIES" if relation_type == RelationType.MODIFIES else "USES"
+                relation_name = "MODIFIES" if relation_type == RelationType.MODIFIES.value else "USES"
                 self.logger.info(f"Found global variable relation: {caller_scope} {relation_name} {var_name}")
                 relations.append(relation)
         
@@ -2716,7 +2891,7 @@ class PythonRelationExtractor:
             relation = RelationInfo(
                 source=caller_ref,
                 target=func_ref,
-                relation_type=RelationType.CALLS,
+                relation_type=RelationType.CALLS.value,
                 source_location=self._get_node_location(node),
                 target_location=self._get_node_location(func_node),
                 metadata={}
@@ -2791,6 +2966,7 @@ class PythonRelationExtractor:
             for entity in self.repo_entities:
                 if entity.entity_type == EntityType.CLASS.value and entity.name == class_name:
                     class_ref = self._entity_to_reference(entity, file_path)
+                    self.logger.debug(f"Found exact class match for instantiation: {class_name}")
                     break
                     
             if not class_ref:
@@ -2828,7 +3004,7 @@ class PythonRelationExtractor:
             relation = RelationInfo(
                 source=caller_ref,
                 target=class_ref,
-                relation_type=RelationType.INSTANTIATES,
+                relation_type=RelationType.INSTANTIATES.value,
                 source_location=self._get_node_location(node),
                 target_location=self._get_node_location(func_node),
                 metadata={}
