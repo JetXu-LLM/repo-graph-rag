@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tengteng/go-code-analyzer/internal/analyzer"
@@ -31,6 +32,8 @@ func CalculateWeights(
 	for id, wNode := range weightedNodes {
 		fmt.Printf("Processing node: %s\n", id)
 		switch wNode.Type {
+		case analyzer.FileNode:
+			calculateFileWeights(id, wNode, graph, weightedNodes)
 		case analyzer.PackageNode:
 			calculatePackageWeights(id, wNode, graph, weightedNodes)
 		case analyzer.StructNode:
@@ -47,7 +50,52 @@ func CalculateWeights(
 
 func shouldProcessNodeType(nodeType analyzer.NodeType) bool {
 	return nodeType == analyzer.PackageNode || nodeType == analyzer.StructNode ||
-		nodeType == analyzer.FunctionNode || nodeType == analyzer.InterfaceNode
+		nodeType == analyzer.FunctionNode || nodeType == analyzer.InterfaceNode ||
+		nodeType == analyzer.FileNode
+}
+
+func calculateFileWeights(
+	id string,
+	wNode analyzer.WeightedNode,
+	graph *analyzer.StructuredKnowledgeGraph,
+	weightedNodes map[string]analyzer.WeightedNode,
+) {
+	fileData, ok := wNode.Data.(map[string]interface{})
+	if !ok {
+		return
+	}
+	filePath, ok := fileData["file_path"].(string)
+	if !ok {
+		fmt.Printf("File path not found for node: %s\n", id)
+		return
+	}
+
+	// Count code lines in the file
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Fatalf("Error reading file: %v", err)
+	}
+	wNode.Weights.CodeLineCount = CountCodeLines(content)
+
+	// Count structs and functions in the file
+	for _, node := range graph.Nodes {
+		if node.Type == analyzer.StructNode || node.Type == analyzer.FunctionNode || node.Type == analyzer.InterfaceNode {
+			parts := strings.Split(node.ID, ":")
+			nodeFilePath := parts[len(parts)-1]
+			if nodeFilePath == filePath {
+				switch node.Type {
+				case analyzer.StructNode:
+					wNode.Weights.StructCount++
+				case analyzer.FunctionNode:
+					wNode.Weights.FunctionCount++
+				case analyzer.InterfaceNode:
+					wNode.Weights.InterfaceCount++
+				}
+			}
+		}
+	}
+
+	weightedNodes[id] = wNode
 }
 
 func calculatePackageWeights(
@@ -86,11 +134,21 @@ func calculatePackageWeights(
 			if ok && funcPkg == pkgName {
 				wNode.Weights.FunctionCount++
 			}
+		} else if node.Type == analyzer.InterfaceNode {
+			interfaceData, ok := node.Data.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			interfacePkg, ok := interfaceData["package_name"].(string)
+			if ok && interfacePkg == pkgName {
+				wNode.Weights.InterfaceCount++
+			}
 		}
 	}
 
 	// Count .go files in the package by traversing the file system
 	goFilesCount := 0
+	pkgCodeLineCount := 0
 	dir := pkgData["location"].(map[string]interface{})["file_path"].(string)
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -99,9 +157,19 @@ func calculatePackageWeights(
 	for _, file := range files {
 		if strings.HasSuffix(file.Name(), ".go") {
 			goFilesCount++
+			if strings.Contains(file.Name(), "_test.go") {
+				continue
+			}
+			filePath := filepath.Join(dir, file.Name())
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				log.Fatalf("Error reading file: %v", err)
+			}
+			pkgCodeLineCount += CountCodeLines(content)
 		}
 	}
 	wNode.Weights.GoFilesCount = goFilesCount
+	wNode.Weights.CodeLineCount = pkgCodeLineCount
 
 	// Count imports in the package
 	for _, edge := range graph.Edges {
@@ -283,4 +351,9 @@ func main() {
 	if err := os.WriteFile("enriched_kg.json", enrichedData, 0644); err != nil {
 		log.Fatalf("Error writing enriched graph file: %v", err)
 	}
+}
+
+func CountCodeLines(content []byte) int {
+	lines := strings.Split(string(content), "\n")
+	return len(lines)
 }

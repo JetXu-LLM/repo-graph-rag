@@ -61,7 +61,7 @@ func NewImportanceAnalyzer(llmClient LLMClient, enrichedGraphPath string) (*Impo
 }
 
 // AnalyzeImportance performs the hierarchical importance analysis
-func (ia *ImportanceAnalyzer) AnalyzeImportance() error {
+func (ia *ImportanceAnalyzer) AnalyzeImportance(debug bool) error {
 	// 1. Analyze package importance
 	packageNodes, err := ia.getPackageNodes()
 	if err != nil {
@@ -69,12 +69,22 @@ func (ia *ImportanceAnalyzer) AnalyzeImportance() error {
 	}
 
 	fmt.Printf("Analyzing %d packages in batches of %d...\n", len(packageNodes), ia.PackageBatchSize)
-	if err := ia.processPackageBatch(packageNodes, ia.PackageBatchSize); err != nil {
+	if err := ia.processPackageBatch(packageNodes, ia.PackageBatchSize, debug); err != nil {
 		return err
 	}
 
-	// 2. Select top 20% important packages and analyze their structs
+	// 2. Select top 20% important packages and analyze their functions
 	topPackages := ia.getTopPackages(packageNodes, 0.2)
+	functionNodes, err := ia.getFunctionNodesFromPackages(topPackages)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Analyzing %d functions in batches of %d...\n", len(functionNodes), ia.FunctionBatchSize)
+	if err := ia.processFunctionBatch(functionNodes, ia.FunctionBatchSize, false); err != nil {
+		return err
+	}
+
+	// 3. Select top 20% important packages and analyze their structs
 	structNodes, err := ia.getStructNodesFromPackages(topPackages)
 	if err != nil {
 		return err
@@ -85,19 +95,19 @@ func (ia *ImportanceAnalyzer) AnalyzeImportance() error {
 		return err
 	}
 
-	// 3. Select top structs and analyze their methods and related functions
+	// 4. Select top structs and analyze their methods and related functions
 	topStructs := ia.getTopStructs(structNodes, 0.2)
-	functionNodes, err := ia.getFunctionNodesFromStructs(topStructs)
+	methodNodes, err := ia.getFunctionNodesFromStructs(topStructs)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Analyzing %d functions in batches of %d...\n", len(functionNodes), ia.FunctionBatchSize)
-	if err := ia.processFunctionBatch(functionNodes, ia.FunctionBatchSize); err != nil {
+	fmt.Printf("Analyzing %d methods in batches of %d...\n", len(methodNodes), ia.FunctionBatchSize)
+	if err := ia.processFunctionBatch(methodNodes, ia.FunctionBatchSize, true); err != nil {
 		return err
 	}
 
-	// 4. Write importance scores back to the enriched graph
+	// 5. Write importance scores back to the enriched graph
 	return ia.writeImportanceScores()
 }
 
@@ -200,6 +210,71 @@ type StructInfo struct {
 	ReferenceCount int
 	InstanceCount  int
 	CodeLineCount  int
+}
+
+func (ia *ImportanceAnalyzer) getFunctionNodesFromPackages(packages []PackageInfo) ([]FunctionInfo, error) {
+	var functions []FunctionInfo
+	packageIDs := make(map[string]bool)
+
+	for _, pkg := range packages {
+		packageIDs[pkg.ID] = true
+	}
+
+	for _, edge := range ia.EnrichedGraph.Edges {
+		if edge.RelationType == analyzer.HasFunction && packageIDs[edge.SourceID] {
+			// Find the function node
+			for _, node := range ia.EnrichedGraph.Nodes {
+				if node.ID == edge.TargetID && node.Type == analyzer.FunctionNode {
+					f := FunctionInfo{
+						ID: node.ID,
+					}
+
+					// Extract data
+					data, ok := node.Data.(map[string]interface{})
+					if !ok {
+						continue
+					}
+
+					original, ok := data["original"].(map[string]interface{})
+					if !ok {
+						continue
+					}
+
+					if name, ok := original["function_name"].(string); ok {
+						f.Name = name
+					}
+
+					weights, ok := data["weights"].(map[string]interface{})
+					if !ok {
+						continue
+					}
+
+					if count, ok := weights["code_line_count"].(int); ok {
+						f.CodeLineCount = int(count)
+					}
+
+					if count, ok := weights["callee_count"].(int); ok {
+						f.CalleeCount = int(count)
+					}
+
+					if count, ok := weights["caller_count"].(int); ok {
+						f.CallerCount = int(count)
+					}
+
+					if count, ok := weights["instantiated_by_function"].(int); ok {
+						f.InstantiatedCount = int(count)
+					}
+
+					if selfRecursive, ok := weights["self_recursive"].(bool); ok {
+						f.IsSelfRecursive = selfRecursive
+					}
+
+					functions = append(functions, f)
+				}
+			}
+		}
+	}
+	return functions, nil
 }
 
 // getStructNodesFromPackages extracts struct nodes from the given packages
@@ -442,7 +517,10 @@ func (ia *ImportanceAnalyzer) writeImportanceScores() error {
 func (ia *ImportanceAnalyzer) processPackageBatch(
 	packages []PackageInfo,
 	batchSize int,
+	debug bool,
 ) error {
+	processPackageDebugFile := "process_package_batch_debug.txt"
+
 	// Process in batches
 	for i := 0; i < len(packages); i += batchSize {
 		end := i + batchSize
@@ -452,11 +530,19 @@ func (ia *ImportanceAnalyzer) processPackageBatch(
 
 		batch := packages[i:end]
 		prompt := ia.createPackagePrompt(batch)
+		fmt.Printf("Package importance prompt: %s\n", prompt)
+		if debug {
+			os.WriteFile(processPackageDebugFile, []byte(prompt), 0644)
+		}
 
 		// Get LLM response for this batch
 		response, err := ia.LLMClient.GetCompletion(prompt)
 		if err != nil {
 			return fmt.Errorf("error getting LLM response for package batch: %v", err)
+		}
+		fmt.Printf("Response:\n%s\n", response)
+		if debug {
+			os.WriteFile(processPackageDebugFile, []byte(response), 0644)
 		}
 
 		// Process response
@@ -475,7 +561,7 @@ func (ia *ImportanceAnalyzer) processPackageBatch(
 func (ia *ImportanceAnalyzer) createPackagePrompt(batch []PackageInfo) string {
 	var prompt strings.Builder
 	prompt.WriteString("Based on the following Go packages information, assign an importance score to each package on a scale of 1-100.\n")
-	prompt.WriteString("Consider metrics like number of Go files, structs, functions, imports, and subpackages. Higher numbers generally indicate more importance.\n")
+	prompt.WriteString("Consider metrics including number of Go files, structs, functions, interfaces, imports, and subpackages. Higher numbers indicate more importance.\n")
 	prompt.WriteString("Respond with ONLY a JSON object mapping package IDs to importance scores.\n\n")
 	prompt.WriteString("Package information:\n")
 
@@ -540,7 +626,7 @@ func (ia *ImportanceAnalyzer) processStructBatch(
 func (ia *ImportanceAnalyzer) createStructPrompt(batch []StructInfo) string {
 	var prompt strings.Builder
 	prompt.WriteString("Based on the following Go structs information, assign an importance score to each struct on a scale of 1-100.\n")
-	prompt.WriteString("Consider metrics like number of fields, methods, references, instances, and code line count. Higher numbers generally indicate more importance.\n")
+	prompt.WriteString("Consider the package name, and metrics like number of fields, methods, references, instances, and code line count. Higher numbers generally indicate more importance.\n")
 	prompt.WriteString("Structs with many methods or that are frequently instantiated are likely more important.\n")
 	prompt.WriteString("Respond with ONLY a JSON object mapping struct IDs to importance scores.\n\n")
 	prompt.WriteString("Struct information:\n")
@@ -573,6 +659,7 @@ func (ia *ImportanceAnalyzer) processStructResponse(response string) error {
 func (ia *ImportanceAnalyzer) processFunctionBatch(
 	functions []FunctionInfo,
 	batchSize int,
+	method bool,
 ) error {
 	// Process in batches
 	for i := 0; i < len(functions); i += batchSize {
@@ -582,7 +669,7 @@ func (ia *ImportanceAnalyzer) processFunctionBatch(
 		}
 
 		batch := functions[i:end]
-		prompt := ia.createFunctionPrompt(batch)
+		prompt := ia.createFunctionPrompt(batch, method)
 
 		// Get LLM response for this batch
 		response, err := ia.LLMClient.GetCompletion(prompt)
@@ -603,10 +690,14 @@ func (ia *ImportanceAnalyzer) processFunctionBatch(
 }
 
 // createFunctionPrompt creates a prompt for function importance analysis
-func (ia *ImportanceAnalyzer) createFunctionPrompt(batch []FunctionInfo) string {
+func (ia *ImportanceAnalyzer) createFunctionPrompt(batch []FunctionInfo, method bool) string {
 	var prompt strings.Builder
 	prompt.WriteString("Based on the following Go functions information, assign an importance score to each function on a scale of 1-100.\n")
-	prompt.WriteString("Consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
+	if method {
+		prompt.WriteString("Consider function name strings. Also consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
+	} else {
+		prompt.WriteString("Consider struct name and method name strings. Also consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
+	}
 	prompt.WriteString("Functions that are called frequently or instantiate many objects are likely more important.\n")
 	prompt.WriteString("Respond with ONLY a JSON object mapping function IDs to importance scores.\n\n")
 	prompt.WriteString("Function information:\n")

@@ -17,6 +17,7 @@ func main() {
 	packageBatchSize := flag.Int("pkg-batch", 10, "Batch size for package analysis")
 	structBatchSize := flag.Int("struct-batch", 10, "Batch size for struct analysis")
 	funcBatchSize := flag.Int("func-batch", 10, "Batch size for function analysis")
+	debug := flag.Bool("debug", false, "Debug mode")
 
 	flag.Parse()
 
@@ -46,7 +47,7 @@ func main() {
 
 	// Analyze importance
 	fmt.Println("Starting hierarchical importance analysis...")
-	if err := analyzer.AnalyzeImportance(); err != nil {
+	if err := analyzer.AnalyzeImportance(*debug); err != nil {
 		log.Fatalf("Error analyzing importance: %v", err)
 	}
 

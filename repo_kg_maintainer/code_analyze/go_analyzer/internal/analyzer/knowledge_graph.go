@@ -122,6 +122,11 @@ type PackageInfo struct {
 	Location    CodeLocation `json:"location"`
 }
 
+type FileInfo struct {
+	FilePath string `json:"file_path"`
+	PackageID string `json:"package_id"`
+}
+
 // Edge types to represent relationships
 type EdgeType string
 
@@ -175,6 +180,7 @@ const (
 	EnumNode              NodeType = "enum"
 	EnumValueNode         NodeType = "enum_value"
 	ImportNode            NodeType = "import"
+	FileNode              NodeType = "file"
 )
 
 // WeightedNode will be used by pagerank and LLM
@@ -194,12 +200,16 @@ type NodeWeights struct {
 	GoFilesCount int `json:"go_files_count,omitempty"`
 	// How many structs in this package
 	StructCount int `json:"struct_count,omitempty"`
+	// How many interfaces in this package
+	InterfaceCount int `json:"interface_count,omitempty"`
 	// How many functions in this package
 	FunctionCount int `json:"function_count,omitempty"`
 	// How many imports in this package
 	ImportCount int `json:"import_count,omitempty"`
 	// How many subpackages in this package
 	SubpackageCount int `json:"subpackage_count,omitempty"`
+	// Main function and struct names in this package
+	MainFuncAndStructNames []string `json:"main_func_and_struct_names,omitempty"`
 
 	// Struct-specific weights
 	// How many fields this struct has

@@ -1,6 +1,12 @@
 package analyzer
 
-import sitter "github.com/smacker/go-tree-sitter"
+import (
+	"path/filepath"
+
+	sitter "github.com/smacker/go-tree-sitter"
+)
+
+var nilPoint = sitter.Point{Row: 0, Column: 0}
 
 func ProcessPackageDecl(
 	node *sitter.Node,
@@ -9,6 +15,7 @@ func ProcessPackageDecl(
 	structuredKG *StructuredKnowledgeGraph,
 ) {
 	if node.Type() == "source_file" {
+		var packageNode *Node
 		// Find package clause
 		for i := 0; i < int(node.NamedChildCount()); i++ {
 			child := node.NamedChild(i)
@@ -18,7 +25,7 @@ func ProcessPackageDecl(
 					nameNode := child.NamedChild(0)
 					if nameNode != nil {
 						packageName := getNodeText(nameNode, content)
-						addNode(
+						packageNode = addNode(
 							"package",
 							packageName,
 							filePath,
@@ -32,6 +39,10 @@ func ProcessPackageDecl(
 				}
 				break // We only need the first package clause
 			}
+		}
+		if packageNode != nil {
+			packageName := packageNode.Name
+			addNode("file", filepath.Base(filePath), filePath, nilPoint, nilPoint, "", packageName, structuredKG)
 		}
 	}
 }
