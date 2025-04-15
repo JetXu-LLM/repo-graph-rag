@@ -30,6 +30,8 @@ func getNodeType(nodeType string) NodeType {
 		return ImportNode
 	case "interface":
 		return InterfaceNode
+	case "file":
+		return FileNode
 	default:
 		return NodeType(nodeType)
 	}
@@ -152,6 +154,13 @@ func addNode(
 			}
 			nodeID = generateNodeID(structNodeType, name, filePath)
 		}
+	case "file":
+		structNodeType = FileNode
+		nodeData = FileInfo{
+			FilePath:  filePath,
+			PackageID: generateNodeID(PackageNode, packageName, filepath.Dir(filePath)),
+		}
+		nodeID = generateNodeID(structNodeType, filepath.Base(filePath), filePath)
 	case "interface_func":
 		structNodeType = InterfaceFunctionNode
 		parts := strings.SplitN(name, ".", 2)

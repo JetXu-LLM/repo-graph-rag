@@ -13,6 +13,7 @@ BINARY_DOT=dot
 BINARY_KG=kg
 BINARY_KGSERV=kgserv
 BINARY_PAGERANK=pagerank
+BINARY_IMPORTANCE=importance
 
 # Build directory
 BUILD_DIR=build
@@ -28,7 +29,7 @@ format:
 
 # Build all binaries
 .PHONY: all
-all: clean $(BUILD_DIR) deps build-callgraph build-dot build-kg build-kgserv build-pagerank
+all: clean $(BUILD_DIR) deps build-callgraph build-dot build-kg build-kgserv build-pagerank build-importance
 
 # Build callgraph binary
 .PHONY: build-callgraph
@@ -55,6 +56,11 @@ build-kgserv: $(BUILD_DIR)
 build-pagerank: $(BUILD_DIR)
 	cd cmd/pagerank && $(GOBUILD) -o ../../$(BUILD_DIR)/$(BINARY_PAGERANK) -v .
 
+# Build importance binary
+.PHONY: build-importance
+build-importance: $(BUILD_DIR)
+	cd cmd/importance && $(GOBUILD) -o ../../$(BUILD_DIR)/$(BINARY_IMPORTANCE) -v .
+
 # Clean build files
 .PHONY: clean
 clean:
@@ -70,6 +76,11 @@ test:
 .PHONY: test-internal
 test-internal:
 	$(GOTEST) -v ./internal/...
+
+# Lint
+.PHONY: lint
+lint: 
+	golines -w .
 
 # Update dependencies
 .PHONY: deps
@@ -103,6 +114,11 @@ run-kgserv: build-kgserv
 run-pagerank: build-pagerank
 	./$(BUILD_DIR)/$(BINARY_PAGERANK)
 
+# Run importance binary
+.PHONY: run-importance
+run-importance: build-importance
+	./$(BUILD_DIR)/$(BINARY_IMPORTANCE)
+
 # Build with specific tags (e.g., for production)
 .PHONY: build-prod
 build-prod: $(BUILD_DIR)
@@ -111,6 +127,7 @@ build-prod: $(BUILD_DIR)
 	cd cmd/kg && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_KG) -v .
 	cd cmd/kgserv && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_KGSERV) -v .
 	cd cmd/pagerank && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_PAGERANK) -v .
+	cd cmd/importance && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_IMPORTANCE) -v .
 
 # Install all binaries to $GOPATH/bin
 .PHONY: install
@@ -120,3 +137,4 @@ install: all
 	cp $(BUILD_DIR)/$(BINARY_KG) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_KGSERV) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_PAGERANK) $(GOPATH)/bin/
+	cp $(BUILD_DIR)/$(BINARY_IMPORTANCE) $(GOPATH)/bin/
