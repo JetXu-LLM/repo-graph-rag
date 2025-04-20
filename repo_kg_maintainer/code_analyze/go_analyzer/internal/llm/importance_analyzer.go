@@ -13,7 +13,7 @@ import (
 // ImportanceAnalyzer evaluates the importance of code components
 type ImportanceAnalyzer struct {
 	LLMClient         LLMClient
-	EnrichedGraph     analyzer.StructuredKnowledgeGraph
+	EnrichedGraph     analyzer.WeightedKnowledgeGraph
 	ImportantNodes    map[string]int // Maps node IDs to importance scores
 	PackageBatchSize  int
 	StructBatchSize   int
@@ -34,14 +34,14 @@ func NewImportanceAnalyzerWithBatchSizes(
 		return nil, fmt.Errorf("error reading enriched graph file: %v", err)
 	}
 
-	var graph analyzer.StructuredKnowledgeGraph
-	if err := json.Unmarshal(data, &graph); err != nil {
+	graph, err := analyzer.UnmarshalWeightedKnowledgeGraph(data)
+	if err != nil {
 		return nil, fmt.Errorf("error parsing enriched graph JSON: %v", err)
 	}
 
 	return &ImportanceAnalyzer{
 		LLMClient:         llmClient,
-		EnrichedGraph:     graph,
+		EnrichedGraph:     *graph,
 		ImportantNodes:    make(map[string]int),
 		PackageBatchSize:  packageBatchSize,
 		StructBatchSize:   structBatchSize,
@@ -75,6 +75,7 @@ func (ia *ImportanceAnalyzer) AnalyzeImportance(debug bool) error {
 
 	// 2. Select top 20% important packages and analyze their functions
 	topPackages := ia.getTopPackages(packageNodes, 0.2)
+	fmt.Printf("Top packages: %v\n", topPackages)
 	functionNodes, err := ia.getFunctionNodesFromPackages(topPackages)
 	if err != nil {
 		return err
@@ -89,6 +90,7 @@ func (ia *ImportanceAnalyzer) AnalyzeImportance(debug bool) error {
 	if err != nil {
 		return err
 	}
+	ia.writeImportanceScores(analyzer.PackageNode)
 
 	fmt.Printf("Analyzing %d structs in batches of %d...\n", len(structNodes), ia.StructBatchSize)
 	if err := ia.processStructBatch(structNodes, ia.StructBatchSize); err != nil {
@@ -101,6 +103,7 @@ func (ia *ImportanceAnalyzer) AnalyzeImportance(debug bool) error {
 	if err != nil {
 		return err
 	}
+	ia.writeImportanceScores(analyzer.StructNode)
 
 	fmt.Printf("Analyzing %d methods in batches of %d...\n", len(methodNodes), ia.FunctionBatchSize)
 	if err := ia.processFunctionBatch(methodNodes, ia.FunctionBatchSize, true); err != nil {
@@ -108,7 +111,7 @@ func (ia *ImportanceAnalyzer) AnalyzeImportance(debug bool) error {
 	}
 
 	// 5. Write importance scores back to the enriched graph
-	return ia.writeImportanceScores()
+	return ia.writeImportanceScores(analyzer.FunctionNode)
 }
 
 // PackageInfo contains package metadata for importance evaluation
@@ -126,6 +129,7 @@ type PackageInfo struct {
 func (ia *ImportanceAnalyzer) getPackageNodes() ([]PackageInfo, error) {
 	var packages []PackageInfo
 
+	fmt.Printf("Extracting package nodes...get %d nodes\n", len(ia.EnrichedGraph.Nodes))
 	for _, node := range ia.EnrichedGraph.Nodes {
 		if node.Type == analyzer.PackageNode {
 			pkg := PackageInfo{ID: node.ID}
@@ -136,39 +140,16 @@ func (ia *ImportanceAnalyzer) getPackageNodes() ([]PackageInfo, error) {
 				continue
 			}
 
-			original, ok := data["original"].(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			if name, ok := original["package_name"].(string); ok {
+			if name, ok := data["package_name"].(string); ok {
 				pkg.Name = name
 			}
 
-			weights, ok := data["weights"].(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			if count, ok := weights["go_files_count"].(float64); ok {
-				pkg.GoFilesCount = int(count)
-			}
-
-			if count, ok := weights["struct_count"].(float64); ok {
-				pkg.StructCount = int(count)
-			}
-
-			if count, ok := weights["function_count"].(float64); ok {
-				pkg.FunctionCount = int(count)
-			}
-
-			if count, ok := weights["import_count"].(float64); ok {
-				pkg.ImportCount = int(count)
-			}
-
-			if count, ok := weights["subpackage_count"].(float64); ok {
-				pkg.SubpackageCount = int(count)
-			}
+			weights := node.Weights
+			pkg.GoFilesCount = int(weights.GoFilesCount)
+			pkg.StructCount = int(weights.StructCount)
+			pkg.FunctionCount = int(weights.FunctionCount)
+			pkg.ImportCount = int(weights.ImportCount)
+			pkg.SubpackageCount = int(weights.SubpackageCount)
 
 			packages = append(packages, pkg)
 		}
@@ -224,6 +205,11 @@ func (ia *ImportanceAnalyzer) getFunctionNodesFromPackages(packages []PackageInf
 		if edge.RelationType == analyzer.HasFunction && packageIDs[edge.SourceID] {
 			// Find the function node
 			for _, node := range ia.EnrichedGraph.Nodes {
+				// Filter out unit test functions
+				if strings.Contains(node.ID, "_test.go") {
+					continue
+				}
+
 				if node.ID == edge.TargetID && node.Type == analyzer.FunctionNode {
 					f := FunctionInfo{
 						ID: node.ID,
@@ -235,40 +221,24 @@ func (ia *ImportanceAnalyzer) getFunctionNodesFromPackages(packages []PackageInf
 						continue
 					}
 
-					original, ok := data["original"].(map[string]interface{})
-					if !ok {
-						continue
+					if name, ok := data["function_name"].(string); ok {
+						parts := strings.Split(name, ".")
+						f.Name = fmt.Sprintf("func %s%s %s", parts[len(parts)-1], data["input_params"], data["return_params"])
+						if len(parts) > 1 {
+							f.StructName = parts[0]
+						}
 					}
 
-					if name, ok := original["function_name"].(string); ok {
-						f.Name = name
+					if packageName, ok := data["package_name"].(string); ok {
+						f.PackageName = packageName
 					}
 
-					weights, ok := data["weights"].(map[string]interface{})
-					if !ok {
-						continue
-					}
-
-					if count, ok := weights["code_line_count"].(int); ok {
-						f.CodeLineCount = int(count)
-					}
-
-					if count, ok := weights["callee_count"].(int); ok {
-						f.CalleeCount = int(count)
-					}
-
-					if count, ok := weights["caller_count"].(int); ok {
-						f.CallerCount = int(count)
-					}
-
-					if count, ok := weights["instantiated_by_function"].(int); ok {
-						f.InstantiatedCount = int(count)
-					}
-
-					if selfRecursive, ok := weights["self_recursive"].(bool); ok {
-						f.IsSelfRecursive = selfRecursive
-					}
-
+					weights := node.Weights
+					f.CodeLineCount = int(weights.CodeLineCount)
+					f.CalleeCount = int(weights.CalleeCount)
+					f.CallerCount = int(weights.CallerCount)
+					f.InstantiatedCount = int(weights.InstantiatedByFunction)
+					f.IsSelfRecursive = weights.SelfRecursiveFunc
 					functions = append(functions, f)
 				}
 			}
@@ -304,40 +274,16 @@ func (ia *ImportanceAnalyzer) getStructNodesFromPackages(packages []PackageInfo)
 						continue
 					}
 
-					original, ok := data["original"].(map[string]interface{})
-					if !ok {
-						continue
-					}
-
-					if name, ok := original["struct_name"].(string); ok {
+					if name, ok := data["struct_name"].(string); ok {
 						s.Name = name
 					}
 
-					weights, ok := data["weights"].(map[string]interface{})
-					if !ok {
-						continue
-					}
-
-					if count, ok := weights["field_count"].(float64); ok {
-						s.FieldCount = int(count)
-					}
-
-					if count, ok := weights["method_count"].(float64); ok {
-						s.MethodCount = int(count)
-					}
-
-					if count, ok := weights["reference_count"].(float64); ok {
-						s.ReferenceCount = int(count)
-					}
-
-					if count, ok := weights["total_instance_count"].(float64); ok {
-						s.InstanceCount = int(count)
-					}
-
-					if count, ok := weights["code_line_count"].(float64); ok {
-						s.CodeLineCount = int(count)
-					}
-
+					weights := node.Weights
+					s.FieldCount = int(weights.FieldCount)
+					s.MethodCount = int(weights.MethodCount)
+					s.ReferenceCount = int(weights.ReferenceCount)
+					s.InstanceCount = int(weights.TotalInstanceCount)
+					s.CodeLineCount = int(weights.CodeLineCount)
 					structs = append(structs, s)
 				}
 			}
@@ -372,9 +318,11 @@ func (ia *ImportanceAnalyzer) getTopStructs(structs []StructInfo, topPercentage 
 
 // FunctionInfo contains function metadata for importance evaluation
 type FunctionInfo struct {
-	ID                string
-	StructID          string // Empty if not a method
-	Name              string
+	ID          string
+	PackageName string
+	StructName  string // Empty if not a method
+	Name        string
+
 	CodeLineCount     int
 	CalleeCount       int // How many times this function is called
 	CallerCount       int // How many functions this function calls
@@ -398,9 +346,22 @@ func (ia *ImportanceAnalyzer) getFunctionNodesFromStructs(structs []StructInfo) 
 			// Find the function/method node
 			for _, node := range ia.EnrichedGraph.Nodes {
 				if node.ID == edge.TargetID && node.Type == analyzer.FunctionNode {
+					packageName := ""
+					structName := ""
+					if data, ok := node.Data.(map[string]interface{}); ok {
+						if pkgName, ok := data["package_name"].(string); ok {
+							packageName = pkgName
+						}
+						if parentStruct, ok := data["parent_struct"].(string); ok {
+							parts := strings.Split(parentStruct, ":")
+							structName = parts[1]
+						}
+					}
+
 					f := FunctionInfo{
-						ID:       node.ID,
-						StructID: edge.SourceID,
+						ID:          node.ID,
+						PackageName: packageName,
+						StructName:  structName,
 					}
 
 					// Extract data
@@ -423,7 +384,7 @@ func (ia *ImportanceAnalyzer) getFunctionNodesFromStructs(structs []StructInfo) 
 }
 
 // extractFunctionData extracts function metadata from a node
-func (ia *ImportanceAnalyzer) extractFunctionData(node analyzer.GraphNode) (*FunctionInfo, error) {
+func (ia *ImportanceAnalyzer) extractFunctionData(node analyzer.WeightedNode) (*FunctionInfo, error) {
 	f := &FunctionInfo{
 		ID: node.ID,
 	}
@@ -434,50 +395,28 @@ func (ia *ImportanceAnalyzer) extractFunctionData(node analyzer.GraphNode) (*Fun
 		return nil, fmt.Errorf("invalid function data format")
 	}
 
-	original, ok := data["original"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("missing original data")
+	if name, ok := data["function_name"].(string); ok {
+		f.Name = fmt.Sprintf("func %s%s %s", name, data["input_params"], data["return_params"])
 	}
 
-	if name, ok := original["function_name"].(string); ok {
-		f.Name = name
-	}
-
-	weights, ok := data["weights"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("missing weights data")
-	}
-
-	if count, ok := weights["code_line_count"].(float64); ok {
-		f.CodeLineCount = int(count)
-	}
-
-	if count, ok := weights["callee_count"].(float64); ok {
-		f.CalleeCount = int(count)
-	}
-
-	if count, ok := weights["caller_count"].(float64); ok {
-		f.CallerCount = int(count)
-	}
-
-	if count, ok := weights["instantiated_by_function"].(float64); ok {
-		f.InstantiatedCount = int(count)
-	}
-
-	// Check for self-recursive label
-	if labels, ok := weights["labels"].(map[string]interface{}); ok {
-		if selfRecursive, ok := labels[string(analyzer.SelfRecursiveFunc)].(bool); ok {
-			f.IsSelfRecursive = selfRecursive
-		}
-	}
+	weights := node.Weights
+	f.CodeLineCount = int(weights.CodeLineCount)
+	f.CalleeCount = int(weights.CalleeCount)
+	f.CallerCount = int(weights.CallerCount)
+	f.InstantiatedCount = int(weights.InstantiatedByFunction)
+	f.IsSelfRecursive = weights.SelfRecursiveFunc
 
 	return f, nil
 }
 
 // writeImportanceScores writes the LLMImportance scores back to the enriched graph
-func (ia *ImportanceAnalyzer) writeImportanceScores() error {
+func (ia *ImportanceAnalyzer) writeImportanceScores(nodeType analyzer.NodeType) error {
 	// Update the nodes in the enriched graph with importance scores
 	for i, node := range ia.EnrichedGraph.Nodes {
+		if node.Type != nodeType {
+			continue
+		}
+
 		if score, exists := ia.ImportantNodes[node.ID]; exists {
 			// Get the existing data
 			data, ok := node.Data.(map[string]interface{})
@@ -486,17 +425,14 @@ func (ia *ImportanceAnalyzer) writeImportanceScores() error {
 			}
 
 			// Get or create weights
-			weights, ok := data["weights"].(map[string]interface{})
-			if !ok {
-				weights = map[string]interface{}{}
-			}
+			weights := node.Weights
 
 			// Add LLMImportance score
-			weights["LLMImportance"] = score
+			weights.Importance = score
 
 			// Update the data
-			data["weights"] = weights
 			ia.EnrichedGraph.Nodes[i].Data = data
+			ia.EnrichedGraph.Nodes[i].Weights = weights
 		}
 	}
 
@@ -649,6 +585,7 @@ func (ia *ImportanceAnalyzer) processStructResponse(response string) error {
 
 	// Update importance scores
 	for id, score := range scores {
+		fmt.Printf("ID: %s, Score: %d\n", id, score)
 		ia.ImportantNodes[id] = score
 	}
 
@@ -670,6 +607,8 @@ func (ia *ImportanceAnalyzer) processFunctionBatch(
 
 		batch := functions[i:end]
 		prompt := ia.createFunctionPrompt(batch, method)
+
+		fmt.Printf("Function importance prompt: %s\n", prompt)
 
 		// Get LLM response for this batch
 		response, err := ia.LLMClient.GetCompletion(prompt)
@@ -694,22 +633,25 @@ func (ia *ImportanceAnalyzer) createFunctionPrompt(batch []FunctionInfo, method 
 	var prompt strings.Builder
 	prompt.WriteString("Based on the following Go functions information, assign an importance score to each function on a scale of 1-100.\n")
 	if method {
-		prompt.WriteString("Consider function name strings. Also consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
+		prompt.WriteString("Consider package and function name strings. Also consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
 	} else {
-		prompt.WriteString("Consider struct name and method name strings. Also consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
+		prompt.WriteString("Consider package, struct name and method name strings. Also consider metrics like number of callers, callees, instantiated objects, and code line count. Higher numbers generally indicate more importance.\n")
 	}
-	prompt.WriteString("Functions that are called frequently or instantiate many objects are likely more important.\n")
+	prompt.WriteString("1. Function name, package name and go file path are the most important factors.\n")
+	prompt.WriteString("2. Function num of lines is another important factor.\n")
+	prompt.WriteString("3. Functions that are called frequently or instantiate many objects are likely to be more important.\n")
 	prompt.WriteString("Respond with ONLY a JSON object mapping function IDs to importance scores.\n\n")
 	prompt.WriteString("Function information:\n")
 
 	for _, f := range batch {
 		structInfo := ""
-		if f.StructID != "" {
-			structInfo = fmt.Sprintf("Method of Struct ID: %s\n", f.StructID)
+		if f.StructName != "" {
+			structInfo = fmt.Sprintf("Method of Struct: %s\n", f.StructName)
 		}
 
-		functionInfo := fmt.Sprintf("Function ID: %s\n%sName: %s\nCode Lines: %d\nCalled by others: %d\nCalls to others: %d\nObjects instantiated: %d\nSelf-recursive: %v\n\n",
-			f.ID, structInfo, f.Name, f.CodeLineCount, f.CalleeCount, f.CallerCount, f.InstantiatedCount, f.IsSelfRecursive)
+		functionInfo := fmt.Sprintf(
+			"Function ID: %s\nPackage: %s\n%sName: %s\nNum of lines: %d\nCalled by others: %d\nCalls to others: %d\nObjects instantiated: %d\nSelf-recursive: %v\n\n",
+			f.ID, f.PackageName, structInfo, f.Name, f.CodeLineCount, f.CalleeCount, f.CallerCount, f.InstantiatedCount, f.IsSelfRecursive)
 		prompt.WriteString(functionInfo)
 	}
 
@@ -725,6 +667,7 @@ func (ia *ImportanceAnalyzer) processFunctionResponse(response string) error {
 
 	// Update importance scores
 	for id, score := range scores {
+		fmt.Printf("ID: %s, Score: %d\n", id, score)
 		ia.ImportantNodes[id] = score
 	}
 

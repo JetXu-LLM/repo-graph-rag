@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -12,10 +13,23 @@ func processImports(
 	packageName string, structuredKG *StructuredKnowledgeGraph) {
 	for i := 0; i < int(node.NamedChildCount()); i++ {
 		child := node.NamedChild(i)
-		if child.Type() == "import_spec" {
+		importPaths := []string{}
+		if child.Type() == "import_spec_list" {
+			for j := 0; j < int(child.NamedChildCount()); j++ {
+				importSpec := child.NamedChild(j)
+				if importSpec.Type() == "import_spec" {
+					importPath := getNodeText(importSpec.NamedChild(0), content)
+					importPath = strings.Trim(importPath, "\"")
+					importPaths = append(importPaths, importPath)
+				}
+			}
+		} else if child.Type() == "import_spec" {
 			importPath := getNodeText(child.NamedChild(0), content)
 			importPath = strings.Trim(importPath, "\"")
+			importPaths = append(importPaths, importPath)
+		}
 
+		for _, importPath := range importPaths {
 			// Check if the importNode already exists in the structured knowledge graph
 			nodeExists := false
 			nodeID := generateNodeID(ImportNode, importPath, filePath)
@@ -26,22 +40,22 @@ func processImports(
 					break
 				}
 			}
+			var importNode *Node
 			if nodeExists {
-				// If it exists, we don't need to create a new one
-				continue
+				importNode = structuredKG.Kg.Nodes[fmt.Sprintf("import:%s", importPath)]
+			} else {
+				// Create the import node
+				importNode = addNode(
+					"import",
+					importPath,
+					filePath,
+					child.StartPoint(),
+					child.EndPoint(),
+					"",
+					packageName,
+					structuredKG,
+				)
 			}
-
-			// Create the import node
-			importNode := addNode(
-				"import",
-				importPath,
-				filePath,
-				child.StartPoint(),
-				child.EndPoint(),
-				"",
-				packageName,
-				structuredKG,
-			)
 
 			// Update the ImportInfo in the structured knowledge graph
 			for i, n := range structuredKG.Nodes {

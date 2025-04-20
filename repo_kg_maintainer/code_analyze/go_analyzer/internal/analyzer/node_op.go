@@ -45,6 +45,8 @@ func addNode(
 	if nodeType == string(PackageNode) {
 		filePath = filepath.Dir(filePath)
 		key = fmt.Sprintf("%s:%s:%s", nodeType, name, filePath)
+	} else if nodeType == string(ImportNode) {
+		key = fmt.Sprintf("%s:%s", nodeType, name)
 	} else {
 		key = fmt.Sprintf("%s:%s:%s:%d", nodeType, name, filePath, startPos.Row+1)
 	}
