@@ -22,7 +22,8 @@ func CalculateWeights(
 			weightedNodes[node.ID] = analyzer.WeightedNode{
 				GraphNode: &node,
 				Weights: analyzer.NodeWeights{
-					Labels: make(map[analyzer.NodeLabel]bool),
+					SelfRecursiveFunc: false,
+					Tags:              make([]string, 0),
 				},
 			}
 		}
@@ -263,14 +264,14 @@ func calculateFunctionWeights(
 			if edge.SourceID != id { // Avoid counting self-recursive calls
 				wNode.Weights.CalleeCount++
 			} else {
-				wNode.Weights.Labels[analyzer.SelfRecursiveFunc] = true
+				wNode.Weights.SelfRecursiveFunc = true
 			}
 		}
 		if edge.SourceID == id && edge.RelationType == analyzer.Calls {
 			if edge.TargetID != id { // Avoid counting self-recursive calls
 				wNode.Weights.CallerCount++
 			} else {
-				wNode.Weights.Labels[analyzer.SelfRecursiveFunc] = true
+				wNode.Weights.SelfRecursiveFunc = true
 			}
 		}
 		if edge.SourceID == id && edge.RelationType == analyzer.Instantiates {
@@ -324,21 +325,19 @@ func main() {
 	weightedNodes := CalculateWeights(&graph)
 
 	// Create enriched graph while preserving original structure
-	enrichedGraph := analyzer.StructuredKnowledgeGraph{
-		Nodes: make([]analyzer.GraphNode, len(graph.Nodes)),
+	enrichedGraph := analyzer.WeightedKnowledgeGraph{
+		Nodes: make([]analyzer.WeightedNode, len(graph.Nodes)),
 		Edges: graph.Edges,
-		Kg:    graph.Kg,
 	}
 
 	// Preserve all nodes, enrich only the relevant ones
 	for i, node := range graph.Nodes {
-		enrichedGraph.Nodes[i] = node // Copy the original node
+		enrichedGraph.Nodes[i] = analyzer.WeightedNode{
+			GraphNode: &node,
+		} // Copy the original node
 		if wNode, exists := weightedNodes[node.ID]; exists {
 			// Only enrich nodes that we calculated weights for
-			enrichedGraph.Nodes[i].Data = map[string]interface{}{
-				"original": node.Data,
-				"weights":  wNode.Weights,
-			}
+			enrichedGraph.Nodes[i].Weights = wNode.Weights
 		}
 	}
 

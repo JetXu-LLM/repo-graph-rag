@@ -1,5 +1,11 @@
 package analyzer
 
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
 // Node represents a node in our knowledge graph
 type Node struct {
 	Type         string
@@ -123,7 +129,7 @@ type PackageInfo struct {
 }
 
 type FileInfo struct {
-	FilePath string `json:"file_path"`
+	FilePath  string `json:"file_path"`
 	PackageID string `json:"package_id"`
 }
 
@@ -183,11 +189,66 @@ const (
 	FileNode              NodeType = "file"
 )
 
+type WeightedKnowledgeGraph struct {
+	Nodes []WeightedNode `json:"nodes"`
+	Edges []GraphEdge    `json:"edges"`
+}
+
 // WeightedNode will be used by pagerank and LLM
 // WeightedNode extends GraphNode with additional weight information
 type WeightedNode struct {
 	*GraphNode
-	Weights NodeWeights `json:"weights"`
+	Weights NodeWeights `json:"weights,omitempty"`
+}
+
+// Unmarshaling strategy for WeightedKnowledgeGraph with embedded GraphNode pointers
+func UnmarshalWeightedKnowledgeGraph(data []byte) (*WeightedKnowledgeGraph, error) {
+	// Create a temporary struct that flattens the embedded pointer fields
+	type tempNode struct {
+		// GraphNode fields
+		ID   string      `json:"id"`
+		Type NodeType    `json:"type"`
+		Data interface{} `json:"data"`
+
+		// WeightedNode fields
+		Weights NodeWeights `json:"weights"`
+	}
+
+	// Temporary graph structure that uses the flattened node structure
+	type tempGraph struct {
+		Nodes []tempNode  `json:"nodes"`
+		Edges []GraphEdge `json:"edges"`
+	}
+
+	// Unmarshal into the temporary structure
+	var tmpG tempGraph
+	if err := json.Unmarshal(data, &tmpG); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	// Create the actual WeightedKnowledgeGraph
+	graph := &WeightedKnowledgeGraph{
+		Nodes: make([]WeightedNode, len(tmpG.Nodes)),
+		Edges: tmpG.Edges,
+	}
+
+	// Convert tempNodes to WeightedNodes
+	for i, tn := range tmpG.Nodes {
+		// Create a new GraphNode with the data from the temporary node
+		graphNode := &GraphNode{
+			ID:   tn.ID,
+			Type: tn.Type,
+			Data: tn.Data,
+		}
+
+		// Create the WeightedNode with the GraphNode pointer
+		graph.Nodes[i] = WeightedNode{
+			GraphNode: graphNode,
+			Weights:   tn.Weights,
+		}
+	}
+
+	return graph, nil
 }
 
 // NodeWeights stores various weight metrics for different node types
@@ -229,12 +290,26 @@ type NodeWeights struct {
 	// How many instances are instantiated by this function
 	InstantiatedByFunction int `json:"instantiated_by_function,omitempty"`
 
-	// Labels for the node
-	Labels map[NodeLabel]bool `json:"labels,omitempty"`
+	// Whether this function is self-recursive
+	SelfRecursiveFunc bool `json:"self_recursive_func,omitempty"`
+
+	// Importance of the node
+	Importance int `json:"importance,omitempty"`
+
+	// Tags for the node
+	Tags []string `json:"tags,omitempty"`
 }
 
-type NodeLabel string
+func LoadKnowledgeGraph(path string) (*StructuredKnowledgeGraph, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading knowledge graph file: %v", err)
+	}
 
-const (
-	SelfRecursiveFunc NodeLabel = "self_recursive_func"
-)
+	var graph StructuredKnowledgeGraph
+	if err := json.Unmarshal(data, &graph); err != nil {
+		return nil, fmt.Errorf("error parsing knowledge graph JSON: %v", err)
+	}
+
+	return &graph, nil
+}
