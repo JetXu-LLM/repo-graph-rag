@@ -55,8 +55,8 @@ def main():
         password=arangodb_pwd
     )
     
-    # Process the repository structure
-    kg.build_knowledge_graph(repo.full_name, repo_structure)
+    # # Process the repository structure
+    # kg.build_knowledge_graph(repo.full_name, repo_structure)
 
 if __name__ == "__main__":
     main()

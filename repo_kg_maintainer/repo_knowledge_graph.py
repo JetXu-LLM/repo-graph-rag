@@ -1,6 +1,7 @@
 from arango import ArangoClient
 from datetime import datetime
 import logging
+import time
 from typing import Dict, Any, Optional
 import re
 from llama_github.data_retrieval.github_entities import Repository
@@ -180,6 +181,33 @@ class RepoKnowledgeGraph:
         }
         repo_key = self._generate_key(repo_name)
         return self._upsert_entity('Repository', repo_key, repo_data)
+    
+    def get_file_last_modified(self, repo, file_path: str):
+        """
+        Get file's last modified date without downloading content.
+        
+        Args:
+            repo: PyGithub repository object
+            file_path: Path to the file within the repository
+            
+        Returns:
+            Last modified date or None if not found
+        """
+        # Simple retry mechanism - 3 attempts with 2 second delay
+        for attempt in range(3):
+            try:
+                # Get the commits for the specified file path
+                commits = repo.get_commits(path=file_path)
+                # Check if any commits were found
+                if commits.totalCount > 0:
+                    return commits[0].commit.author.date
+                return None
+            except Exception as e:
+                if attempt < 2:  # Only sleep if we're going to retry
+                    time.sleep(2)
+                else:
+                    print(f"Failed to get last modified date: {e}")
+                    return None
 
     def process_repo_structure(self, repo_name: str, structure: Dict, 
                                parent_path: str = "", parent_id: Optional[str] = None):
@@ -221,7 +249,9 @@ class RepoKnowledgeGraph:
             else:
                 self.logger.info(f"Processing file: {current_path}")
                 file_extension = name.split('.')[-1].lower() if '.' in name else ''
-                last_modified = normalize_datetime(self.repo._repo.get_contents(info['path']).last_modified)
+                # last_modified = normalize_datetime(self.repo._repo.get_contents(info['path']).last_modified)
+                last_modified = normalize_datetime(self.get_file_last_modified(self.repo._repo, info['path']))
+                # self.logger.info(f"Last modified for {info['path']}: {last_modified}")
 
                 # Generate the key for file lookup
                 file_key = self._generate_key(info['path'])
