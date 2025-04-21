@@ -1,2 +1,5 @@
 python-arango
 dotenv
+pathlib
+tree-sitte
+tree-sitter-python
