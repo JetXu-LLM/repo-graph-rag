@@ -7,6 +7,7 @@ import re
 from llama_github.data_retrieval.github_entities import Repository
 from code_analyze.code_analyzer import CodeAnalyzer, EntityType, EntityInfo, RelationType
 from utils import normalize_datetime
+import traceback
 
 class RepoKnowledgeGraph:
     def __init__(self, repo: Repository,
@@ -312,6 +313,7 @@ class RepoKnowledgeGraph:
                         self.logger.info(f"File '{name}' is supported. Extracted entities: {len(code_entities)}")
                     except Exception as e:
                         self.logger.error(f"Error processing file {info['path']}: {str(e)}")
+                        self.logger.error(f"Traceback: {traceback.format_exc()}")
                         continue
 
                     if file_entity:
@@ -510,6 +512,7 @@ class RepoKnowledgeGraph:
                 
             except Exception as e:
                 self.logger.error(f"Error processing relations for file {file_path}: {str(e)}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
         
         self.logger.info(f"Completed processing relations: {total_relations} relations from {processed_files} files")
 
