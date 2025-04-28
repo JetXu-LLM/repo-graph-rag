@@ -141,9 +141,9 @@ class CodeAnalyzer:
         "ts": "typescript",
         "tsx": "tsx",
         "java": "java",
-        "go": "go",
-        "html": "html",
-        "htm": "html",
+        # "go": "go",
+        # "html": "html",
+        # "htm": "html",
     }
 
     def __init__(self, repo: Repository, language_paths=None):

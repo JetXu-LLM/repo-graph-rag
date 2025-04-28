@@ -6,7 +6,7 @@ import re
 from dotenv import load_dotenv
 import os
 
-load_dotenv('.env')
+load_dotenv('/Users/xujiantong/Code/repos/repo-graph-rag/.env')
 
 # Example usage
 def main():
@@ -43,7 +43,7 @@ def main():
     )
 
     # Get repository and structure
-    repo = github_rag.RepositoryPool.get_repository("JetXu-LLM/python-relation-test")
+    repo = github_rag.RepositoryPool.get_repository("apache/airflow")
     repo_structure = repo.get_structure()
 
     # Initialize the knowledge graph
@@ -56,7 +56,7 @@ def main():
     )
     
     # # Process the repository structure
-    # kg.build_knowledge_graph(repo.full_name, repo_structure)
+    kg.build_knowledge_graph(repo.full_name, repo_structure)
 
 if __name__ == "__main__":
     main()
