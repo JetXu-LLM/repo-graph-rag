@@ -119,18 +119,6 @@ func GenerateCallGraph(projectDir string) ([]Relationship, error) {
 		return nil, fmt.Errorf("error in first pass: %v", err)
 	}
 
-	/* DEBUG
-	fmt.Printf("analyzer.Packages: %+v\n", analyzer.Packages)
-	for typename, t := range analyzer.Types {
-		fmt.Printf("analyzer.Types: %s: %+v\n", typename, t)
-	}
-	for funcName, funcInfo := range analyzer.Functions {
-		fmt.Printf("analyzer.Functions: %s: %+v\n", funcName, funcInfo)
-	}
-	for methodName, methodInfo := range analyzer.Methods {
-		fmt.Printf("analyzer.Methods: %s: %+v\n", methodName, methodInfo)
-	} */
-
 	// Second pass: analyze function calls
 	err = filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -536,6 +524,7 @@ func (a *Analyzer) analyzeFileForCalls(filePath string) error {
 		case *ast.FuncDecl:
 			// Set the current function we're analyzing
 			if x.Recv == nil {
+				// Function
 				a.CurrentFunction = fmt.Sprintf("%s.%s", packageName, x.Name.Name)
 			} else {
 				// Method

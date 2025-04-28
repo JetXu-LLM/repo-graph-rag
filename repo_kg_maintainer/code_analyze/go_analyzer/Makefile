@@ -15,6 +15,7 @@ BINARY_KGSERV=kgserv
 BINARY_PAGERANK=pagerank
 BINARY_IMPORTANCE=importance
 BINARY_TAGGING=tagging
+BINARY_MCP=mcp
 
 # Build directory
 BUILD_DIR=build
@@ -30,7 +31,7 @@ format:
 
 # Build all binaries
 .PHONY: all
-all: clean $(BUILD_DIR) deps build-callgraph build-dot build-kg build-kgserv build-pagerank build-importance build-tagging
+all: clean $(BUILD_DIR) deps build-callgraph build-dot build-kg build-kgserv build-pagerank build-importance build-tagging build-mcp
 
 # Build callgraph binary
 .PHONY: build-callgraph
@@ -66,6 +67,11 @@ build-importance: $(BUILD_DIR)
 .PHONY: build-tagging
 build-tagging: $(BUILD_DIR)
 	cd cmd/tagging && $(GOBUILD) -o ../../$(BUILD_DIR)/$(BINARY_TAGGING) -v .
+
+# Build mcp binary
+.PHONY: build-mcp
+build-mcp: $(BUILD_DIR)
+	cd cmd/mcp && $(GOBUILD) -o ../../$(BUILD_DIR)/$(BINARY_MCP) -v .
 
 # Clean build files
 .PHONY: clean
@@ -130,6 +136,11 @@ run-importance: build-importance
 run-tagging: build-tagging
 	./$(BUILD_DIR)/$(BINARY_TAGGING)
 
+# Run mcp binary
+.PHONY: run-mcp
+run-mcp: build-mcp
+	./$(BUILD_DIR)/$(BINARY_MCP)
+
 # Build with specific tags (e.g., for production)
 .PHONY: build-prod
 build-prod: $(BUILD_DIR)
@@ -140,6 +151,7 @@ build-prod: $(BUILD_DIR)
 	cd cmd/pagerank && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_PAGERANK) -v .
 	cd cmd/importance && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_IMPORTANCE) -v .
 	cd cmd/tagging && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_TAGGING) -v .
+	cd cmd/mcp && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_MCP) -v .
 
 # Install all binaries to $GOPATH/bin
 .PHONY: install
@@ -151,3 +163,4 @@ install: all
 	cp $(BUILD_DIR)/$(BINARY_PAGERANK) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_IMPORTANCE) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_TAGGING) $(GOPATH)/bin/
+	cp $(BUILD_DIR)/$(BINARY_MCP) $(GOPATH)/bin/

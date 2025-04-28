@@ -457,6 +457,8 @@ func (ia *ImportanceAnalyzer) processPackageBatch(
 ) error {
 	processPackageDebugFile := "process_package_batch_debug.txt"
 
+	systemPrompt := "You are a helpful assistant specialized in analyzing Go code importance."
+
 	// Process in batches
 	for i := 0; i < len(packages); i += batchSize {
 		end := i + batchSize
@@ -472,7 +474,7 @@ func (ia *ImportanceAnalyzer) processPackageBatch(
 		}
 
 		// Get LLM response for this batch
-		response, err := ia.LLMClient.GetCompletion(prompt)
+		response, err := ia.LLMClient.GetCompletion(systemPrompt, prompt)
 		if err != nil {
 			return fmt.Errorf("error getting LLM response for package batch: %v", err)
 		}
@@ -530,6 +532,7 @@ func (ia *ImportanceAnalyzer) processStructBatch(
 	structs []StructInfo,
 	batchSize int,
 ) error {
+	systemPrompt := "You are a helpful assistant specialized in analyzing Go code importance."
 	// Process in batches
 	for i := 0; i < len(structs); i += batchSize {
 		end := i + batchSize
@@ -541,7 +544,7 @@ func (ia *ImportanceAnalyzer) processStructBatch(
 		prompt := ia.createStructPrompt(batch)
 
 		// Get LLM response for this batch
-		response, err := ia.LLMClient.GetCompletion(prompt)
+		response, err := ia.LLMClient.GetCompletion(systemPrompt, prompt)
 		if err != nil {
 			return fmt.Errorf("error getting LLM response for struct batch: %v", err)
 		}
@@ -598,6 +601,8 @@ func (ia *ImportanceAnalyzer) processFunctionBatch(
 	batchSize int,
 	method bool,
 ) error {
+	systemPrompt := "You are a helpful assistant specialized in analyzing Go code importance."
+
 	// Process in batches
 	for i := 0; i < len(functions); i += batchSize {
 		end := i + batchSize
@@ -611,7 +616,7 @@ func (ia *ImportanceAnalyzer) processFunctionBatch(
 		fmt.Printf("Function importance prompt: %s\n", prompt)
 
 		// Get LLM response for this batch
-		response, err := ia.LLMClient.GetCompletion(prompt)
+		response, err := ia.LLMClient.GetCompletion(systemPrompt, prompt)
 		if err != nil {
 			return fmt.Errorf("error getting LLM response for function batch: %v", err)
 		}

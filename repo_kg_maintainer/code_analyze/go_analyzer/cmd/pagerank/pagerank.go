@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,6 +46,9 @@ func CalculateWeights(
 			calculateInterfaceWeights(id, wNode, graph, weightedNodes)
 		}
 	}
+
+	// Calculate pagerank for each node
+	weightedNodes = CalculatePageRank(weightedNodes, graph.Edges)
 
 	return weightedNodes
 }
@@ -355,4 +359,110 @@ func main() {
 func CountCodeLines(content []byte) int {
 	lines := strings.Split(string(content), "\n")
 	return len(lines)
+}
+
+func CalculatePageRank(weightedNodes map[string]analyzer.WeightedNode, edges []analyzer.GraphEdge) map[string]analyzer.WeightedNode {
+	const (
+		damping       = 0.85   // Standard damping factor
+		maxIterations = 100    // Maximum number of iterations
+		threshold     = 0.0001 // Convergence threshold
+	)
+
+	nodeCount := len(weightedNodes)
+	if nodeCount == 0 {
+		return weightedNodes
+	}
+
+	// Initialize scores to 1/N
+	initialScore := 1.0 / float64(nodeCount)
+	for id, node := range weightedNodes {
+		node.Weights.PageRankScore = initialScore
+		weightedNodes[id] = node
+	}
+
+	// Build the adjacency map for quick lookup
+	// For each node, which nodes point to it and how many outgoing links those nodes have
+	adjacencyMap := make(map[string][]string)
+	outgoingLinkCount := make(map[string]int)
+
+	// Count outgoing links for each node
+	for id := range weightedNodes {
+		outgoingLinkCount[id] = 0
+	}
+
+	// Populate adjacency map using the edges from the graph
+	for _, edge := range edges {
+		sourceID := edge.SourceID
+		targetID := edge.TargetID
+
+		if _, exists := weightedNodes[sourceID]; exists {
+			outgoingLinkCount[sourceID]++
+		}
+
+		if _, exists := weightedNodes[targetID]; exists {
+			adjacencyMap[targetID] = append(adjacencyMap[targetID], sourceID)
+		}
+	}
+
+	// PageRank iteration
+	for iter := 0; iter < maxIterations; iter++ {
+		// Track if we've converged
+		maxDiff := 0.0
+
+		// New scores for this iteration
+		newScores := make(map[string]float64)
+
+		// Calculate new score for each node
+		for id := range weightedNodes {
+			// Start with the random jump factor
+			newScore := (1.0 - damping)
+
+			// Add contribution from each incoming link
+			for _, sourceID := range adjacencyMap[id] {
+				sourceNode := weightedNodes[sourceID]
+				outLinks := outgoingLinkCount[sourceID]
+				if outLinks > 0 {
+					newScore += damping * (sourceNode.Weights.PageRankScore / float64(outLinks))
+				}
+			}
+
+			newScores[id] = newScore
+		}
+
+		// Update scores and check for convergence
+		for id, node := range weightedNodes {
+			oldScore := node.Weights.PageRankScore
+			newScore := newScores[id]
+
+			// Calculate difference for convergence check
+			diff := math.Abs(newScore - oldScore)
+			if diff > maxDiff {
+				maxDiff = diff
+			}
+
+			// Update the node with new score
+			node.Weights.PageRankScore = newScore
+			weightedNodes[id] = node
+		}
+
+		// Check for convergence
+		if maxDiff < threshold {
+			break
+		}
+	}
+
+	// Normalize scores (optional)
+	totalScore := 0.0
+	for _, node := range weightedNodes {
+		totalScore += node.Weights.PageRankScore
+	}
+
+	if totalScore > 0 {
+		for id, node := range weightedNodes {
+			node.Weights.PageRankScore = node.Weights.PageRankScore / totalScore
+			weightedNodes[id] = node
+		}
+	}
+
+	return weightedNodes
 }
