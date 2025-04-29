@@ -9,19 +9,27 @@ import (
 // Path represents a sequence of connected nodes
 type Path []string
 
+type PathInfo struct {
+	ID     string `json:"id"`
+	Path   Path   `json:"path"`
+	Length int    `json:"length"`
+}
+
 // Graph represents a directed graph using adjacency list
 type Graph map[string][]string
 
 // FindLongPaths finds all paths and sorted by path length
 // Only returns paths with top 20% longest paths
-func FindLongPaths(graph Graph) []Path {
+func FindLongPaths(graph Graph, entryNodes []string) []PathInfo {
 	var allPaths []Path
+	var allPathsInfo []PathInfo
+
 	visited := make(map[string]bool)
 
 	// Start DFS from each node
-	for node := range graph {
+	for _, node := range entryNodes {
 		// We set minLength to 3 as we only want to find paths of at least 3 nodes
-		dfs(graph, node, []string{}, visited, &allPaths, 3)
+		dfs(graph, node, []string{}, visited, &allPaths, 3, 5)
 	}
 
 	// Sort paths by length
@@ -29,20 +37,27 @@ func FindLongPaths(graph Graph) []Path {
 		return len(allPaths[i]) > len(allPaths[j])
 	})
 
-	longestPathSize := len(allPaths)
-	if longestPathSize > 25 {
-		longestPathSize = longestPathSize / 5
-	}
-	if longestPathSize > 5000 { // Limit the number of paths to 5000
-		longestPathSize = 5000
+	fmt.Printf("Total paths: %d\n", len(allPaths))
+
+	for _, path := range allPaths {
+		var id string
+		funcNames := make([]string, 0)
+		for _, node := range path {
+			funcNames = append(funcNames, strings.Split(node, ":")[1])
+		}
+		id = strings.Join(funcNames, "-")
+		allPathsInfo = append(allPathsInfo, PathInfo{
+			ID:     id,
+			Path:   path,
+			Length: len(path),
+		})
 	}
 
-	// Only return top 20% longest paths
-	return allPaths[:longestPathSize]
+	return allPathsInfo
 }
 
 // dfs performs depth-first search to find paths
-func dfs(graph Graph, node string, currentPath []string, visited map[string]bool, allPaths *[]Path, minLength int) {
+func dfs(graph Graph, node string, currentPath []string, visited map[string]bool, allPaths *[]Path, minLength int, maxLength int) {
 	// Mark current node as visited
 	visited[node] = true
 
@@ -56,12 +71,15 @@ func dfs(graph Graph, node string, currentPath []string, visited map[string]bool
 		copy(pathCopy, currentPath)
 		*allPaths = append(*allPaths, pathCopy)
 	}
+	if len(currentPath) >= maxLength {
+		return
+	}
 
 	// Explore neighbors
 	for _, neighbor := range graph[node] {
 		// Skip if neighbor is already in current path (avoid cycles)
 		if !contains(currentPath, neighbor) {
-			dfs(graph, neighbor, currentPath, visited, allPaths, minLength)
+			dfs(graph, neighbor, currentPath, visited, allPaths, minLength, maxLength)
 		}
 	}
 
@@ -77,28 +95,6 @@ func contains(slice []string, value string) bool {
 		}
 	}
 	return false
-}
-
-// KnowledgeGraphToGraph converts a StructuredKnowledgeGraph to a Graph representation
-// that can be used with FindLongPaths
-func KnowledgeGraphToGraph(skg *StructuredKnowledgeGraph) Graph {
-	graph := make(Graph)
-
-	// Add all nodes to the graph
-	for _, node := range skg.Nodes {
-		if node.Type == FunctionNode {
-			graph[node.ID] = []string{}
-		}
-	}
-
-	// Add edges to the graph
-	for _, edge := range skg.Edges {
-		if edge.RelationType == Calls {
-			graph[edge.SourceID] = append(graph[edge.SourceID], edge.TargetID)
-		}
-	}
-
-	return graph
 }
 
 type CommonPaths struct {
@@ -130,7 +126,7 @@ func CommonPathsCount(paths []Path) []CommonPaths {
 				continue
 			}
 
-			fmt.Printf("Comparing path %d with path %d. Length: %d, %d\n", i, j, pathLen, otherPathLen)
+			// fmt.Printf("Comparing path %d with path %d. Length: %d, %d\n", i, j, pathLen, otherPathLen)
 
 			// Find the longest common subpath
 			commonSubpath := findLongestCommonSubpath(path, otherPath)

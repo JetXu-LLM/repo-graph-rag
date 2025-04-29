@@ -163,6 +163,7 @@ type GraphEdge struct {
 	TargetType   string   `json:"target_type"` // Type of the target node
 	TargetID     string   `json:"target_id"`   // Identifier for the target node
 	RelationType EdgeType `json:"relation_type"`
+	CrossPackage bool     `json:"cross_package,omitempty"`
 }
 
 // Rename KnowledgeGraph to StructuredKnowledgeGraph
@@ -296,6 +297,9 @@ type NodeWeights struct {
 	// Importance of the node
 	Importance int `json:"importance,omitempty"`
 
+	// PageRank score
+	PageRankScore float64 `json:"page_rank_score,omitempty"`
+
 	// Tags for the node
 	Tags []string `json:"tags,omitempty"`
 }
@@ -307,6 +311,20 @@ func LoadKnowledgeGraph(path string) (*StructuredKnowledgeGraph, error) {
 	}
 
 	var graph StructuredKnowledgeGraph
+	if err := json.Unmarshal(data, &graph); err != nil {
+		return nil, fmt.Errorf("error parsing knowledge graph JSON: %v", err)
+	}
+
+	return &graph, nil
+}
+
+func LoadWeightedKnowledgeGraph(path string) (*WeightedKnowledgeGraph, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading knowledge graph file: %v", err)
+	}
+
+	var graph WeightedKnowledgeGraph
 	if err := json.Unmarshal(data, &graph); err != nil {
 		return nil, fmt.Errorf("error parsing knowledge graph JSON: %v", err)
 	}
