@@ -43,7 +43,7 @@ def main():
     )
 
     # Get repository and structure
-    repo = github_rag.RepositoryPool.get_repository("apache/airflow")
+    repo = github_rag.RepositoryPool.get_repository("vanna-ai/vanna")
     repo_structure = repo.get_structure()
 
     # Initialize the knowledge graph
@@ -56,7 +56,7 @@ def main():
     )
     
     # # Process the repository structure
-    kg.build_knowledge_graph(repo.full_name, repo_structure)
+    kg.build_knowledge_graph(repo.full_name, repo_structure, incremental=False)
 
 if __name__ == "__main__":
     main()

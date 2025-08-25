@@ -124,6 +124,25 @@ class RelationKey:
         return (self.source_key == other.source_key and
                 self.target_key == other.target_key and
                 self.relation_type == other.relation_type)
+    
+@dataclass
+class FileChangeInfo:
+    """Information about file changes"""
+    file_path: str
+    change_type: str  # 'added', 'modified', 'deleted', 'moved'
+    old_path: Optional[str] = None  # For moved files
+    current_hash: Optional[str] = None
+    old_hash: Optional[str] = None
+    last_modified: Optional[str] = None
+
+@dataclass
+class EntityChangeInfo:
+    """Information about entity changes within a file"""
+    entity_key: str
+    entity_type: str
+    change_type: str  # 'added', 'modified', 'deleted'
+    file_path: str
+    content_hash: Optional[str] = None
 
 class CodeAnalyzer:
     """
@@ -282,9 +301,14 @@ class CodeAnalyzer:
         language = self.get_file_language(file_path)
         if not language:
             self.logger.warning(f"Unsupported language for file: {file_path}")
-            return {"file": {}, "entities": [], "relationships": []}
+            return None, []
 
         content = self.repo.get_file_content(file_path, sha)
+
+        # FIX: Handle cases where file content cannot be retrieved (e.g., binary files)
+        if content is None:
+            self.logger.warning(f"Could not retrieve content for {file_path}, skipping entity extraction.")
+            return None, []
 
         if language.lower() == "python":
             from code_analyze.python_analyzer import PythonAnalyzer
