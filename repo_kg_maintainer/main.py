@@ -5,8 +5,13 @@ from llama_github import GithubRAG
 import re
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 
-load_dotenv('/Users/xujiantong/Code/repos/repo-graph-rag/.env')
+_DEFAULT_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+if _DEFAULT_ENV_PATH.exists():
+    load_dotenv(_DEFAULT_ENV_PATH)
+else:
+    load_dotenv()
 
 # Example usage
 def main():

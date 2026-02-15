@@ -17,7 +17,8 @@ class RepoKnowledgeGraph:
                  database: str = 'repo_kg',
                  username: str = 'root',
                  password: str = 'root',
-                 base_path: str = ''):
+                 base_path: str = '',
+                 reset_collections: bool = False):
         """
         Initializes Knowledge Graph connection.
         """
@@ -44,7 +45,7 @@ class RepoKnowledgeGraph:
         self.db = self.client.db(database, username=username, password=password)
         
         # Initialize collections
-        self._init_collections()
+        self._init_collections(reset=reset_collections)
 
     def _calculate_content_hash(self, content: str) -> str:
         """Calculate hash for content comparison"""
@@ -708,20 +709,20 @@ class RepoKnowledgeGraph:
             self.logger.error(f"Error creating relationship: {e}")
             return False
 
-    def _init_collections(self):
+    def _init_collections(self, reset: bool = False):
         """
         Initializes required collections and edge collections.
         """
         # Entity collections - using EntityType enum values
         for entity_type in EntityType:
-            if self.db.has_collection(entity_type.value):
+            if reset and self.db.has_collection(entity_type.value):
                 self.db.delete_collection(entity_type.value)
             if not self.db.has_collection(entity_type.value):
                 self.db.create_collection(entity_type.value)
         
         # Relationship collections - using RelationType enum values and CONTAINS
         for relation_type in RelationType:
-            if self.db.has_collection(relation_type.value):
+            if reset and self.db.has_collection(relation_type.value):
                 self.db.delete_collection(relation_type.value)
             if not self.db.has_collection(relation_type.value):
                 self.db.create_collection(relation_type.value, edge=True)

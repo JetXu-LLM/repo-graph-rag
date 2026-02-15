@@ -1,5 +1,10 @@
 python-arango
-dotenv
-pathlib
-tree-sitte
+python-dotenv
+python-dateutil
+tree-sitter
 tree-sitter-python
+tree-sitter-java
+tree-sitter-javascript
+tree-sitter-typescript
+fastapi
+uvicorn

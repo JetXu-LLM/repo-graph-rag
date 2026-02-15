@@ -141,7 +141,7 @@ class PythonAnalyzer:
 
             # Process current node
             if node.type == "class_definition" or node.type == "function_definition":
-                entity = self._create_code_entity(node)
+                entity = self._create_code_entity(node, context.content)
                 if entity:
                     entity.file_path = context.file_path
                     ents.append(entity)
@@ -285,17 +285,47 @@ class PythonAnalyzer:
         """Extract documentation string from node"""
         docstring = ""
 
-        # Look for string literal immediately after node start
+        # Look for direct string/comment children first
         for child in node.children:
             if child.type in ("string", "string_literal", "comment"):
                 text = self._get_node_text(child, content)
-                # Clean up the docstring
-                text = re.sub(r'^["\']|["\']$', "", text)
-                text = re.sub(r"^#\s*", "", text)
-                docstring = text.strip()
-                break
+                docstring = self._clean_docstring_text(text)
+                if docstring:
+                    return docstring
+
+        # For Python class/function docstrings, inspect the first statement in the body block
+        body = node.child_by_field_name("body")
+        if not body:
+            for child in node.children:
+                if child.type == "block":
+                    body = child
+                    break
+
+        if body:
+            for child in body.children:
+                if child.type == "expression_statement":
+                    for grandchild in child.children:
+                        if grandchild.type in ("string", "string_literal"):
+                            text = self._get_node_text(grandchild, content)
+                            return self._clean_docstring_text(text)
+                elif child.type in ("string", "string_literal", "comment"):
+                    text = self._get_node_text(child, content)
+                    return self._clean_docstring_text(text)
+                elif child.type in (":", ";"):
+                    continue
+                else:
+                    # Docstring must be first logical statement.
+                    break
 
         return docstring
+
+    def _clean_docstring_text(self, text: str) -> str:
+        """Normalize extracted docstring/comment text."""
+        cleaned = text.strip()
+        cleaned = re.sub(r"^#\s*", "", cleaned)
+        cleaned = re.sub(r"^[rRuUbBfF]*('{3}|\"{3}|'|\")", "", cleaned)
+        cleaned = re.sub(r"('{3}|\"{3}|'|\")$", "", cleaned)
+        return cleaned.strip()
 
     def _get_node_identifier(self, node: tree_sitter.Node) -> Optional[str]:
         """Get identifier name from node"""
@@ -362,4 +392,10 @@ class PythonAnalyzer:
             if child.type == "decorator":
                 decorator_text = self._get_node_text(child, content).lstrip('@')
                 decorators.append(decorator_text)
+
+        if not decorators and node.parent and node.parent.type == "decorated_definition":
+            for child in node.parent.children:
+                if child.type == "decorator":
+                    decorator_text = self._get_node_text(child, content).lstrip('@')
+                    decorators.append(decorator_text)
         return decorators
