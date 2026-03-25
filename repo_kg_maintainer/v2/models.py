@@ -10,6 +10,8 @@ GRAPH_VERSION = "2.0"
 
 @dataclass(frozen=True)
 class RelationProvenance:
+    """Evidence metadata explaining which pass and rule created an edge."""
+
     extractor_pass: str
     rule_id: str
     source_span: Tuple[int, int]
@@ -18,6 +20,8 @@ class RelationProvenance:
 
 @dataclass(frozen=True)
 class GraphNode:
+    """Canonical node shape used by the public v2 graph contract."""
+
     id: str
     tenant_id: str
     repo_id: str
@@ -32,6 +36,8 @@ class GraphNode:
 
 @dataclass(frozen=True)
 class GraphEdge:
+    """Canonical edge shape used by the public v2 graph contract."""
+
     id: str
     tenant_id: str
     repo_id: str
@@ -45,6 +51,8 @@ class GraphEdge:
 
 @dataclass
 class GraphSnapshot:
+    """Serializable snapshot containing deterministic graph state for one commit."""
+
     tenant_id: str
     repo_id: str
     commit_sha: str
@@ -59,6 +67,8 @@ class GraphSnapshot:
 
 @dataclass
 class IndexJobStatus:
+    """Worker-visible status record for asynchronous indexing jobs."""
+
     job_id: str
     tenant_id: str
     repo_id: str

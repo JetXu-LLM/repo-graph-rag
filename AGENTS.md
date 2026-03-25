@@ -1,152 +1,113 @@
 # AGENTS.md (repo-graph-rag)
 
-## Mission for this repository
+## Scope
 
-This repository is the Code Mesh graph-retrieval R&D workspace.
+- Applies to everything under `repo-graph-rag/`
+- If a deeper directory later adds its own `AGENTS.md`, the deeper file wins in
+  that subtree
 
-Primary objective:
-- strengthen Jet Xu's reputation through deterministic, evidence-backed graph intelligence work.
+## Repo Truth
 
-Secondary objective:
-- support monetization pathways only when they do not reduce trust, quality, reproducibility, or cost control.
+1. This repository is a **public research artifact**, not a production-hardened
+   service.
+2. The supported public path is the Python `v2` deterministic snapshot pipeline.
+3. The legacy Python + Arango path is kept for **full-build only** historical
+   compatibility.
+4. The Go analyzer subtree is **experimental** and outside the default support
+   surface.
+5. Broken or environment-coupled research modules were removed from the runtime
+   tip and are preserved only in history or the archive boundary.
 
-## Scope and precedence
+## Source Of Truth
 
-- Scope: everything under `repo-graph-rag/`.
-- Precedence: this file overrides the workspace-level `AGENTS.md` for this subtree.
-- If a deeper subdirectory later adds its own `AGENTS.md`, that deeper file takes precedence in that subtree.
+Treat these as the active public surfaces:
 
-## Current repo truth (treat as facts)
-
-1. This repo is valuable but **legacy/experimental quality**, not production-hardened.
-2. Python graph build path exists and works in controlled environments, but is not plug-and-play.
-3. Go analyzer subsystem is substantial and useful, but only partially integrated with Python orchestration.
-4. Environment-specific assumptions and artifact hygiene issues still exist.
-5. There is no clean, single cross-language production entrypoint yet.
-
-## Source of truth vs legacy zones
-
-Treat these as active source of truth for behavior:
-- `repo_kg_maintainer/repo_knowledge_graph.py`
+- `repo_kg_maintainer/main_v2.py`
+- `repo_kg_maintainer/v2/`
 - `repo_kg_maintainer/code_analyze/code_analyzer.py`
 - `repo_kg_maintainer/code_analyze/python_analyzer.py`
 - `repo_kg_maintainer/code_analyze/python_relation.py`
-- `repo_kg_maintainer/code_analyze/go_analyzer/internal/`
-- `repo_kg_maintainer/code_analyze/go_analyzer/cmd/`
 
-Treat these as legacy/prototype artifacts unless task explicitly says otherwise:
-- `repo_kg_maintainer/code_analyzer-ckm0-j4kq29y4nc.py`
-- `repo_kg_maintainer/test_*.ipynb`
-- committed caches (`__pycache__/`) and large generated JSON fixtures
-- exploratory docs and snapshots that are not referenced by active code paths
+Treat these as legacy:
 
-## Strategic direction rules for this repo
+- `repo_kg_maintainer/main.py`
+- `repo_kg_maintainer/repo_knowledge_graph.py`
 
-1. Prioritize deterministic extraction quality and reproducibility over adding broad feature surface.
-2. Prefer improvements that can be externally validated (benchmarks, fixtures, regression checks).
-3. Keep MCP interoperability and embeddability in mind when changing Go analyzer interfaces.
-4. Do not position this work as a generic review bot feature; keep focus on deterministic context precision.
-5. Optimize for maintainability and clarity so this repo can be consolidated into a future dedicated graph engine home.
+Treat these as experimental:
 
-## Task routing inside this repo
+- `repo_kg_maintainer/code_analyze/go_analyzer/`
 
-- Python graph orchestration / Arango behavior:
-  - `repo_kg_maintainer/repo_knowledge_graph.py`
-  - `repo_kg_maintainer/main.py`
+Treat these as archived references:
 
-- Language entity/relation extraction:
-  - `repo_kg_maintainer/code_analyze/*.py`
+- `repo_kg_maintainer/archive/`
+- removed historical modules discoverable through git history
 
-- Go parser / traversal / graph generation:
-  - `repo_kg_maintainer/code_analyze/go_analyzer/internal/analyzer/`
-  - `repo_kg_maintainer/code_analyze/go_analyzer/internal/parser/`
+## Direction
 
-- Go product surfaces (CLI, MCP, service):
-  - `repo_kg_maintainer/code_analyze/go_analyzer/cmd/`
-  - `repo_kg_maintainer/code_analyze/go_analyzer/internal/mcp/`
-  - `repo_kg_maintainer/code_analyze/go_analyzer/internal/handlers/`
+Optimize for:
 
-- Document graph enrichment research:
-  - `repo_kg_maintainer/repo_doc_maintainer.py`
+- deterministic extraction quality
+- reproducibility
+- explicit evidence and validation
+- clarity of support boundaries
+- maintainability of the Python `v2` path
 
-- Documentation and strategic positioning for this repo:
-  - `repo-graph-rag/README.md`
-  - `repo-graph-rag/AGENTS.md`
+Do not widen support claims casually. If graph semantics, IDs, or public
+behavior change, document why and update tests/docs accordingly.
 
-## Non-negotiable safety and security guardrails
+## Security And Hygiene
 
 1. Never commit real secrets, tokens, credentials, or private `.env` values.
-2. Never copy sensitive values from notebooks/logs into code or docs.
-3. If a file appears to contain secret-like literals, treat as incident risk and avoid propagating values.
-4. Keep local absolute paths out of new code unless explicitly unavoidable; prefer env/config-driven paths.
-5. Do not add new runtime dependence on machine-specific directories.
+2. Do not copy sensitive values from notebooks, logs, or local config into code
+   or docs.
+3. Keep local absolute paths out of new code and documentation.
+4. Do not reintroduce large generated graph artifacts into tracked `HEAD`.
+5. Treat legacy and experimental paths with the same secret-hygiene standard as
+   the supported path.
 
-## Engineering guardrails
+## Validation
 
-1. Minimize scope: one subsystem per task unless multi-subsystem change is explicitly required.
-2. Preserve backward compatibility of graph schemas/interfaces unless a breaking change is explicitly approved.
-3. If production-like behavior changes, add or update meaningful automated checks where feasible.
-4. Do not silently change graph semantics (node IDs, edge types, relation meaning) without documenting why.
-5. Prefer deterministic logic over opaque heuristics; when heuristics are needed, document assumptions.
-6. Avoid adding notebooks into core runtime paths.
-7. Avoid committing generated artifacts by default unless task explicitly requests artifact publication.
+Run only the checks relevant to the changed area.
 
-## Known high-risk implementation traps
+### Python public surface
 
-1. `main.py` currently hardcodes a user-specific `.env` path.
-2. `requirements.txt` includes low-quality entries and typo risk.
-3. `CodeAnalyzer` relation extraction path is Python-heavy; JS/TS/Java relation extraction is incomplete.
-4. Go analyzer is not fully wired into Python extension routing (`go` support mismatch).
-5. Some service surfaces are stubs (for example `kgserv` edge processing).
-6. Duplicate command files exist (`cmd/kg/main.go` and `cmd/kg/kg.go`; `cmd/importance/main.go` and `cmd/importance/importance.go`).
-7. Collection initialization behavior in Python graph layer can reset persisted graph state.
-
-When touching these areas, explicitly call out risk and migration impact in final summary.
-
-## Validation commands
-
-Run only commands relevant to changed paths.
-
-### Python-side changes
 From `repo_kg_maintainer/`:
-- Syntax smoke:
-  - `python -m py_compile main.py repo_knowledge_graph.py utils.py`
-  - `python -m py_compile code_analyze/code_analyzer.py code_analyze/python_analyzer.py code_analyze/python_relation.py code_analyze/java_analyzer.py code_analyze/jsts_analyzer.py`
-- Integration smoke (requires credentials + Arango + llama-github installed):
-  - `python main.py`
 
-### Go analyzer changes
-From `repo_kg_maintainer/code_analyze/go_analyzer/`:
+- `python -m py_compile main.py main_v2.py repo_knowledge_graph.py utils.py`
+- `python -m py_compile code_analyze/code_analyzer.py code_analyze/python_analyzer.py code_analyze/python_relation.py code_analyze/java_analyzer.py code_analyze/jsts_analyzer.py`
+- `python -m py_compile v2/api/rest.py v2/api/service.py v2/analyzer/pipeline.py v2/graph/store.py v2/mcp/toolset.py v2/evidence/benchmark.py v2/runtime.py`
+- `PYTHONPATH=. python -m pytest tests -q`
+
+### Python demo proof surface
+
+From repo root:
+
+- `PYTHONPATH=repo_kg_maintainer python repo_kg_maintainer/main_v2.py --tenant tenant-demo --repo examples/python-demo --commit demo-commit --source examples/python_demo_repo --output /tmp/python_demo_snapshot_v2.json`
+
+### Legacy local smoke
+
+Requires credentials, ArangoDB, and `requirements-legacy.txt`:
+
+- `python main.py --repo <OWNER/REPO> --reset-collections`
+
+### Go subtree
+
+From `repo_kg_maintainer/code_analyze/go_analyzer/` when Go is available:
+
 - `make test`
 - `make all`
-- If parser/output logic changed, run:
-  - `./build/kg <PROJECT_DIRECTORY>`
-  - optional follow-up: `./build/dot`, `./build/pagerank`
 
-### MCP/LLM surfaces
-Run only when touched and credentials are available:
-- `./build/mcp -kg enriched_kg_with_importance.json`
-- `./build/importance -graph enriched_kg.json -apikey "$OPENAI_API_KEY"`
-- `./build/tagging -graph enriched_kg_with_importance.json -apikey "$OPENAI_API_KEY"`
+## Documentation Expectations
 
-If a command cannot be run (missing credentials/services), explicitly state that in final output.
+Update docs when changing:
 
-## Documentation requirements
+- architecture or execution workflow
+- schema or relation semantics
+- public entrypoints or runtime assumptions
+- support boundaries
 
-Update docs when any of the following change:
-- architecture, entrypoints, or execution workflow,
-- schema semantics or relation definitions,
-- required env vars, external services, or operational assumptions,
-- ownership/routing expectations.
+At minimum reflect substantial behavior changes in:
 
-At minimum, reflect substantial behavior changes in:
-- `repo-graph-rag/README.md`
-
-## Definition of done for changes in this repo
-
-- Correct subsystem chosen.
-- No unrelated file churn.
-- Relevant checks run (or clear reason they were not runnable).
-- Security and portability implications noted.
-- Documentation updated for user-facing/architectural changes.
-- Final summary includes risk callouts and, for strategic work, explicit reputation impact (what reusable proof this enables).
+- `README.md`
+- `repo_kg_maintainer/README.md`
+- relevant files under `docs/`

@@ -1,345 +1,249 @@
 # repo-graph-rag
 
-Deterministic repository graph research workspace for Code Mesh.
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Graph](https://img.shields.io/badge/graph-v2.0-0a7b83)
+![Status](https://img.shields.io/badge/status-research%20artifact-orange)
 
-This repository is a **legacy/experimental prototype**, not a production-ready service. It contains:
-- a Python pipeline that builds a repository knowledge graph in ArangoDB,
-- language analyzers powered by tree-sitter,
-- an independent Go graph analyzer toolchain (including MCP tooling),
-- exploratory notebooks and generated fixture artifacts.
+> Deterministic repository graph intelligence research for Code Mesh.
 
-## Why this repo exists
+`repo-graph-rag` is the public research artifact behind the Code Mesh line of
+work. It is not a productized service and it is not presented as a complete
+cross-language graph engine. The supported public path is a Python-first,
+deterministic snapshot pipeline that turns repository source into reproducible
+graph outputs with explicit provenance.
 
-In the wider Code Mesh strategy, this repository serves as the **graph parser/traversal R&D home** while the production runtime remains in `llamapreview-core-lambda`.
+## Why This Repo Is Worth Reading
 
-Strategic intent for this repo:
-- build deterministic context infrastructure that can be embedded by agents,
-- prioritize reproducible graph quality over broad feature claims,
-- support reputation-first evidence (benchmarks, transparent failure modes),
-- move toward MCP-native interoperability.
+This repository is built around one narrow belief:
 
-## Current status (important)
+**repository understanding becomes much more reliable when context is
+deterministic, traversable, and evidence-backed instead of purely probabilistic.**
 
-- **State**: useful for experiments and architecture consolidation, but not cleanly productized.
-- **Reliability**: mixed; some paths are robust, others are environment-coupled.
-- **Source-of-truth runtime path**: `repo_kg_maintainer/repo_knowledge_graph.py` + `repo_kg_maintainer/code_analyze/`.
-- **Known debt**: hardcoded local paths, incomplete relation coverage by language, duplicated files, committed generated artifacts, and notebook hygiene issues.
+That means:
 
-## Repository layout
+- graph state should be inspectable and reproducible
+- node and edge identity should be stable
+- relations should explain how they were extracted
+- public claims should stay narrower than the implementation can actually prove
 
-```text
-repo-graph-rag/
-  .env.example
-  repo_kg_maintainer/
-    main.py
-    repo_knowledge_graph.py
-    repo_doc_maintainer.py
-    utils.py
-    requirements.txt
-    repo_kg_schema_1.2.yaml
-    LANGUAGE_NODE_MAPPINGS
-    code_analyze/
-      code_analyzer.py
-      python_analyzer.py
-      python_relation.py
-      java_analyzer.py
-      jsts_analyzer.py
-      docs/
-      go_analyzer/
-        cmd/
-        internal/
-        knowledge_graph_examples/
-        Makefile
-        go.mod
-    test_*.ipynb
-```
+## Research Lineage
 
-## Python architecture deep dive
+The repo makes more sense as part of a sequence:
 
-### 1) Orchestration entrypoint
+1. `llama-github` explored GitHub-native retrieval as a substrate.
+2. `LlamaPReview` validated the practical value of high-quality code context.
+3. `llamapreview-context-research` formalized the failure mode:
+   **context instability**.
+4. `repo-graph-rag` pushes the idea toward deterministic graph construction and
+   traversal-first repository intelligence.
 
-- `repo_kg_maintainer/main.py`
-  - loads env vars,
-  - instantiates `GithubRAG`,
-  - fetches a target repository and structure,
-  - creates `RepoKnowledgeGraph`,
-  - runs `build_knowledge_graph`.
+## Run The Demo In Under A Minute
 
-### Critical caveat
-`main.py` hardcodes:
-- `load_dotenv('/Users/xujiantong/Code/repos/repo-graph-rag/.env')`
-
-This path is machine-specific and does not match this workspace path by default.
-
-### 2) Graph persistence and update engine
-
-- `repo_kg_maintainer/repo_knowledge_graph.py` is the main persistence layer.
-- Backing DB: ArangoDB collections per entity/edge type.
-- Core responsibilities:
-  - create/upsert Repository, Module, File, Class, Method, Interface, Enum, Variable documents,
-  - build `CONTAINS` hierarchy,
-  - derive and upsert semantic relations (`CALLS`, `INHERITS`, `USES`, `IMPORTS`, etc.),
-  - support full builds and incremental updates.
-
-### Build modes
-- **Full build** (`incremental=False`):
-  1. `process_repo_structure` extracts entities + containment,
-  2. `process_repo_relations` extracts semantic edges.
-- **Incremental** (`incremental=True`):
-  1. file-level diff detection by timestamp/hash,
-  2. entity-level change detection,
-  3. selective relation reprocessing including reverse dependencies.
-
-### Important behavior
-`_init_collections()` currently deletes and recreates collections when initializing. This effectively resets DB state and limits practical incremental reuse unless changed.
-
-### 3) Analyzer abstraction
-
-- `repo_kg_maintainer/code_analyze/code_analyzer.py`
-  - defines canonical dataclasses/enums (`EntityInfo`, `RelationInfo`, `EntityType`, `RelationType`),
-  - routes by file extension to language analyzers,
-  - exposes:
-    - `get_file_entities(...)`
-    - `get_file_relations(...)`
-
-### Implemented coverage
-- Entity extraction:
-  - Python (`python_analyzer.py`)
-  - Java (`java_analyzer.py`)
-  - JavaScript/TypeScript/TSX (`jsts_analyzer.py`)
-- Relation extraction:
-  - Python only (`python_relation.py`) is actively wired.
-  - Java/JS/TS relation paths are not wired in `get_file_relations`.
-
-### Additional caveat
-- `SUPPORTED_EXTENSIONS` in `CodeAnalyzer` omits `go`, so Python pipeline does not invoke the Go analyzer.
-- `get_file_relations(...)` returns a dict for unsupported files, while callers expect list-like relation objects.
-
-### 4) Python relation engine
-
-- `repo_kg_maintainer/code_analyze/python_relation.py`
-- Scope:
-  - inheritance,
-  - instantiation,
-  - direct/attribute/chained calls,
-  - `super()` handling,
-  - import alias resolution,
-  - parameter/variable/object type inference,
-  - global variable/function relations,
-  - relation dedup and validation.
-
-This file is large and heuristic-heavy; it is the most complex Python analysis component in the repo.
-
-### 5) Documentation graph augmentation
-
-- `repo_kg_maintainer/repo_doc_maintainer.py`
-- Adds document nodes/edges into ArangoDB by:
-  - crawling markdown files,
-  - chunking documents,
-  - candidate entity matching,
-  - LLM-assisted mention detection and documentation generation.
-
-Dependencies include Gemini + BeautifulSoup + markdown parsing. This workflow is powerful but currently strongly environment-dependent.
-
-## Go analyzer subsystem deep dive
-
-Located at `repo_kg_maintainer/code_analyze/go_analyzer/`.
-
-This is an independent Go toolchain, not yet fully integrated into the Python orchestration path.
-
-### Core packages
-
-- `internal/analyzer/`
-  - graph model definitions (`StructuredKnowledgeGraph`, `WeightedKnowledgeGraph`, node/edge types),
-  - AST node/edge construction,
-  - call graph extraction (`func_callgraph.go`),
-  - utility algorithms (DFS path discovery, common path counting, graph persistence).
-
-- `internal/parser/`
-  - tree-sitter parsing wrapper,
-  - staged AST processing pipeline (`package -> types -> other nodes`).
-
-- `internal/llm/`
-  - LLM client interface,
-  - OpenAI client,
-  - hierarchical importance analyzer for package/struct/function scoring.
-
-- `internal/mcp/`
-  - MCP tool handlers for package/function/struct/interface browsing and importance retrieval.
-
-- `internal/handlers/`
-  - Gin HTTP handler stubs used by `kgserv`.
-
-### CLI binaries in `cmd/`
-
-- `kg`: parse Go repository -> emit `knowledge_graph.json`.
-- `callgraph`: print function call relationships.
-- `dot`: convert `knowledge_graph.json` -> `output.dot` for Graphviz.
-- `pagerank`: compute weighted/enriched graph -> `enriched_kg.json`.
-- `importance`: LLM-based importance scoring -> `enriched_kg_with_importance.json`.
-- `tagging`: LLM tag assignment + path mining outputs.
-- `mcp`: stdio MCP server over weighted graph.
-- `kgserv`: HTTP server (currently partial; edges endpoint TODO).
-
-### Duplicate command files
-
-`cmd/kg/main.go` and `cmd/kg/kg.go` are duplicated.
-`cmd/importance/main.go` and `cmd/importance/importance.go` are duplicated.
-
-## Setup and execution
-
-### Prerequisites
-
-- Python 3.10+ recommended
-- ArangoDB reachable from local machine
-- Go (for `go_analyzer`)
-- Access to `llama-github` package in local environment
-
-### Environment variables
-
-Use `.env.example` as reference:
-- `GITHUB_ACCESS_TOKEN`
-- `OPENAI_API_KEY` (used by some workflows)
-- `HUGGINGFACE_TOKEN`
-- `MISTRAL_API_KEY`
-- `JINA_API_KEY`
-- `ARANGODB_HOST`
-- `ARANGODB_USERNAME`
-- `ARANGODB_PASSWORD`
-
-### Python install
-
-From `repo_kg_maintainer/`:
+From the repository root:
 
 ```bash
-pip install -r requirements.txt
+python3.11 -m venv .venv
+.venv/bin/pip install -r repo_kg_maintainer/requirements.txt
+PYTHONPATH=repo_kg_maintainer .venv/bin/python repo_kg_maintainer/main_v2.py \
+  --tenant tenant-demo \
+  --repo examples/python-demo \
+  --commit demo-commit \
+  --source examples/python_demo_repo \
+  --output /tmp/python_demo_snapshot_v2.json
 ```
 
-Note: `requirements.txt` currently includes typos/weak pins (for example `tree-sitte`) and may require manual correction.
+Expected stable result for the committed demo:
 
-### Python unit tests (deterministic graph extraction)
-
-From `repo_kg_maintainer/`:
-
-```bash
-python -m pytest tests -q
+```json
+{
+  "graph_version": "2.0",
+  "nodes": 14,
+  "edges": 11,
+  "schema_hash": "a4bc762e8e4e2d91c3c52f3dda836ef818c438c78c184a0d948249328a6a47a9",
+  "snapshot_hash": "1c6493238faab5970ec76770a1ddafed05099c21a8d4b411776aa6111aecea1e"
+}
 ```
 
-The Python unit suite focuses on reproducible graph extraction behavior, including:
-- analyzer dispatch and extension routing (`code_analyzer.py`),
-- Python entity extraction robustness (docstrings, decorators, nesting, complexity),
-- Python relation extraction coverage (imports, inheritance, instantiation, call resolution),
-- knowledge-graph helper regressions for change detection and key generation.
+The committed reference artifact lives at
+`examples/python_demo_snapshot_v2.json`.
 
-### Production v2 foundation (managed-service-first)
+Comparison instructions live in [docs/validation.md](docs/validation.md).
 
-The repository now includes a v2 production foundation under `repo_kg_maintainer/v2/`:
-- deterministic modular Python analysis passes (parse/symbol/import/type/relation/validation),
-- graph schema v2 IDs (`tenant_id|repo_id|commit_sha|entity_kind|symbol_path`),
-- relation provenance (`extractor_pass`, `rule_id`, `source_span`, `confidence`),
-- non-destructive schema bootstrap and tenant-scoped graph storage adapters,
-- webhook normalization + delivery dedup + queue worker + retry/idempotency flow,
-- REST contract service methods and MCP parity tools.
+## What The Demo Proves
 
-Build a local deterministic v2 snapshot:
+The tiny demo repository is intentionally small but non-trivial. It exercises:
 
-```bash
-cd repo_kg_maintainer
-python main_v2.py --tenant tenant-a --repo demo/repo --commit local --source . --output output/graph_snapshot_v2.json
+- file and symbol extraction
+- local import resolution
+- class instantiation
+- method and function calls
+- provenance-bearing edges
+
+This is the public proof surface for the supported Python mainline.
+
+## Concrete Example
+
+From `examples/python_demo_repo/service.py`:
+
+```python
+from helpers import finalize
+from workers import Worker
+
+class TaskService:
+    def execute(self, raw_value: str) -> str:
+        worker = Worker()
+        result = worker.work(raw_value)
+        return finalize(result)
 ```
 
-### Build KG with Python orchestrator
+The resulting graph includes:
 
-```bash
-cd repo_kg_maintainer
-python main.py
+- `service.py::_file_ --IMPORTS--> Worker`
+- `service.py::_file_ --IMPORTS--> finalize`
+- `TaskService.execute --INSTANTIATES--> Worker`
+- `TaskService.execute --CALLS--> Worker.work`
+- `TaskService.execute --CALLS--> finalize`
+
+Those edges also carry provenance such as:
+
+- `imports.module.symbol`
+- `instantiates.class.call`
+- `calls.function.dispatch`
+
+Example edge excerpt:
+
+```json
+{
+  "relation_type": "CALLS",
+  "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|service.py::TaskService.execute",
+  "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|workers.py::Worker.work",
+  "provenance": {
+    "extractor_pass": "relation_extraction",
+    "rule_id": "calls.function.dispatch",
+    "source_span": [8, 18],
+    "confidence": 0.9
+  }
+}
 ```
 
-If it fails immediately, first fix:
-- hardcoded `.env` path in `main.py`,
-- local availability of `llama_github` module,
-- ArangoDB credentials.
+This is the central idea of the repo: not just extracting relations, but making
+their origin visible and reproducible.
 
-### Go analyzer build and run
+## What Is Actually Supported
 
-```bash
-cd repo_kg_maintainer/code_analyze/go_analyzer
-make all
+The public support boundary is intentionally narrow:
 
-# Build a graph from a Go project
-./build/kg <PROJECT_DIRECTORY>
+- **Supported**: Python `v2` deterministic snapshot generation and its in-memory
+  query / MCP parity foundations
+- **Legacy**: Python + Arango full-build path kept for historical compatibility
+- **Experimental**: Go analyzer subtree
+- **Archived**: broken or environment-coupled research modules removed from the
+  public runtime surface
 
-# Generate dot
-./build/dot
+## What You Can Trust Today
 
-# Compute weights
-./build/pagerank
+The Python `v2` path is the supported public contract.
 
-# MCP server on stdio
-./build/mcp -kg enriched_kg_with_importance.json
+Public interfaces:
+
+| Interface | Purpose |
+| :--- | :--- |
+| `repo_kg_maintainer/main_v2.py` | Local CLI for deterministic snapshot generation |
+| `repo_kg_maintainer/v2/analyzer/pipeline.py` | Pass-based Python graph extraction |
+| `repo_kg_maintainer/v2/api/service.py` | Service contract for indexing and querying |
+| `repo_kg_maintainer/v2/graph/store.py` | In-memory and Arango-backed snapshot stores |
+| `repo_kg_maintainer/v2/mcp/toolset.py` | MCP-friendly deterministic graph queries |
+| `repo_kg_maintainer/v2/serializer.py` | Canonical serialization and snapshot hashing |
+
+This repo does not ask readers to trust a vague story. The supported path has:
+
+- executable tests
+- a committed demo repo
+- a committed expected snapshot
+- a deterministic snapshot hash for comparison
+
+## Architecture Snapshot
+
+```mermaid
+flowchart LR
+    A[Repository Source] --> B[Parse / Normalize]
+    B --> C[Symbol Table]
+    C --> D[Import Resolution]
+    D --> E[Type Inference]
+    E --> F[Relation Extraction]
+    F --> G[Relation Validation]
+    G --> H[Deterministic Graph Snapshot v2]
+    H --> I[GraphServiceV2]
+    H --> J[GraphMCPToolsetV2]
 ```
 
-Optional LLM-powered steps:
+The mainline pipeline is deliberately simple:
 
-```bash
-./build/importance -graph enriched_kg.json -apikey "$OPENAI_API_KEY"
-./build/tagging -graph enriched_kg_with_importance.json -apikey "$OPENAI_API_KEY"
-```
+1. collect Python source files from a local repository root
+2. parse and normalize files deterministically
+3. extract file and symbol entities
+4. resolve imports and infer relation targets
+5. emit nodes and provenance-bearing edges
+6. canonicalize the snapshot before saving or serving it
 
-### Artifacts and outputs
+## Support Matrix
 
-Common generated files:
-- `knowledge_graph.json`
-- `output.dot`
-- `enriched_kg.json`
-- `enriched_kg_with_importance.json`
-- `enriched_kg_with_importance_with_tags.json`
-- path mining outputs (`paths.json`, `common_paths.json`)
+| Area | Status | Notes |
+| :--- | :--- | :--- |
+| Python `v2` snapshot pipeline | Supported | Primary public surface |
+| `GraphServiceV2` / `GraphMCPToolsetV2` | Supported | Deterministic query layer over snapshots |
+| Python + Arango legacy path | Legacy | Full-build only; no public incremental support |
+| Go analyzer subtree | Experimental | Kept for research value, not default adoption |
+| Document graph enrichment path | Archived | Removed from runtime support surface |
 
-Example artifacts are committed under:
-- `repo_kg_maintainer/code_analyze/go_analyzer/knowledge_graph_examples/`
+## Documentation Map
 
-These examples currently include machine-specific absolute file paths.
+Start here if you want the supported path:
 
-## Known issues and maintenance traps
+- [repo_kg_maintainer/README.md](repo_kg_maintainer/README.md)
+- [docs/python-v2.md](docs/python-v2.md)
+- [docs/demo-walkthrough.md](docs/demo-walkthrough.md)
+- [docs/snapshot-schema.md](docs/snapshot-schema.md)
 
-1. Hardcoded local paths in Python entrypoints make setup brittle.
-2. `requirements.txt` quality is not production-grade.
-3. Python relation extraction is strong for Python but incomplete for Java/JS/TS.
-4. Go analyzer is not wired into Python `CodeAnalyzer` extension routing.
-5. Some service surfaces are stubs (`kgserv` edge handling).
-6. Legacy files coexist with active code (`code_analyzer-ckm0-*.py`, notebook variants).
-7. Generated/derived artifacts (`__pycache__`, large JSON fixtures) are tracked in repo.
-8. Historical notebooks include sensitive token-style literals and should be treated as unsafe historical artifacts.
+Boundary documents:
 
-## Source of truth vs legacy guidance
+- [docs/legacy-arango.md](docs/legacy-arango.md)
+- [docs/go-experimental.md](docs/go-experimental.md)
+- [docs/validation.md](docs/validation.md)
 
-Treat as source-of-truth for active graph behavior:
-- `repo_kg_maintainer/repo_knowledge_graph.py`
-- `repo_kg_maintainer/code_analyze/code_analyzer.py`
-- `repo_kg_maintainer/code_analyze/python_analyzer.py`
-- `repo_kg_maintainer/code_analyze/python_relation.py`
-- `repo_kg_maintainer/code_analyze/go_analyzer/internal/*`
+Full docs index:
 
-Treat as legacy/prototype artifacts unless explicitly revived:
-- `repo_kg_maintainer/code_analyzer-ckm0-j4kq29y4nc.py`
-- most `test_*.ipynb` notebooks
-- massive fixture output dumps and local caches
+- [docs/README.md](docs/README.md)
 
-## Suggested next hardening milestones
+## Known Limits
 
-1. Remove hardcoded paths and move all runtime config to env/config files.
-2. Clean dependency definitions and add reproducible lock strategy.
-3. Define one canonical CLI for Python pipeline (full + incremental modes).
-4. Integrate Go analyzer pathway into main orchestration (or explicitly decouple as standalone).
-5. Add CI smoke checks for both Python and Go subpaths.
-6. Sanitize notebooks and remove committed secret-like literals.
-7. Reduce duplicate command files and generated artifact churn.
+- Python is the only supported public extraction path.
+- Java / JS / TS extraction exists, but relation extraction is not positioned as
+  complete or public-mainline ready.
+- The legacy Arango path remains coupled to `llama-github==0.3.3` and a pinned
+  `langchain 0.2.x` compatibility stack.
+- Incremental updates on the legacy path were an unfinished experiment and are
+  intentionally not exposed as a public capability.
+- The Go subtree is experimental and outside the default CI and support
+  contract.
 
-## Reputation-first note
+## Repository Notes
 
-For strategic alignment, prioritize work that produces reusable, verifiable artifacts:
-- deterministic extraction benchmarks,
-- failure-case corpora,
-- transparent before/after quality diffs,
-- stable MCP interfaces for external adopters.
+- Large generated graph artifacts and SVG outputs were removed from `HEAD`.
+- Public docs now center the deterministic Python mainline and the committed
+  demo proof surface.
+- Historical modules removed from the runtime tip remain discoverable in git
+  history, but they are not part of the public support boundary.
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md).

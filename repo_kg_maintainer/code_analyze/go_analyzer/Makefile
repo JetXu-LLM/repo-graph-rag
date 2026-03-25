@@ -11,7 +11,6 @@ GOLINES=golines
 BINARY_CALLGRAPH=callgraph
 BINARY_DOT=dot
 BINARY_KG=kg
-BINARY_KGSERV=kgserv
 BINARY_PAGERANK=pagerank
 BINARY_IMPORTANCE=importance
 BINARY_TAGGING=tagging
@@ -31,7 +30,7 @@ format:
 
 # Build all binaries
 .PHONY: all
-all: clean $(BUILD_DIR) deps build-callgraph build-dot build-kg build-kgserv build-pagerank build-importance build-tagging build-mcp
+all: clean $(BUILD_DIR) deps build-callgraph build-dot build-kg build-pagerank build-importance build-tagging build-mcp
 
 # Build callgraph binary
 .PHONY: build-callgraph
@@ -47,11 +46,6 @@ build-dot: $(BUILD_DIR)
 .PHONY: build-kg
 build-kg: $(BUILD_DIR)
 	cd cmd/kg && $(GOBUILD) -o ../../$(BUILD_DIR)/$(BINARY_KG) -v .
-
-# Build kgserv binary
-.PHONY: build-kgserv
-build-kgserv: $(BUILD_DIR)
-	cd cmd/kgserv && $(GOBUILD) -o ../../$(BUILD_DIR)/$(BINARY_KGSERV) -v .
 
 # Build pagerank binary
 .PHONY: build-pagerank
@@ -116,11 +110,6 @@ run-dot: build-dot
 run-kg: build-kg
 	./$(BUILD_DIR)/$(BINARY_KG)
 
-# Run kgserv binary
-.PHONY: run-kgserv
-run-kgserv: build-kgserv
-	./$(BUILD_DIR)/$(BINARY_KGSERV)
-
 # Run pagerank binary
 .PHONY: run-pagerank
 run-pagerank: build-pagerank
@@ -147,7 +136,6 @@ build-prod: $(BUILD_DIR)
 	cd cmd/callgraph && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_CALLGRAPH) -v .
 	cd cmd/dot && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_DOT) -v .
 	cd cmd/kg && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_KG) -v .
-	cd cmd/kgserv && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_KGSERV) -v .
 	cd cmd/pagerank && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_PAGERANK) -v .
 	cd cmd/importance && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_IMPORTANCE) -v .
 	cd cmd/tagging && $(GOBUILD) -tags=production -o ../../$(BUILD_DIR)/$(BINARY_TAGGING) -v .
@@ -159,7 +147,6 @@ install: all
 	cp $(BUILD_DIR)/$(BINARY_CALLGRAPH) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_DOT) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_KG) $(GOPATH)/bin/
-	cp $(BUILD_DIR)/$(BINARY_KGSERV) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_PAGERANK) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_IMPORTANCE) $(GOPATH)/bin/
 	cp $(BUILD_DIR)/$(BINARY_TAGGING) $(GOPATH)/bin/

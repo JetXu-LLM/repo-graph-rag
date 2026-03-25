@@ -1,64 +1,153 @@
 # repo_kg_maintainer
 
-Deterministic graph extraction runtime for Code Mesh experiments and v2 production hardening.
+Public Python runtime for the supported deterministic `v2` graph snapshot path.
 
-## v2 implementation map
+This directory contains the Python-first support surface that is intended to be
+run by other people:
 
-- `v2/analyzer/`: modular deterministic Python analysis pipeline
-  - parse/normalize
-  - symbol table
-  - import resolution
-  - type inference
-  - relation extraction
-  - relation validation + provenance rules
-- `v2/graph/`: graph schema migration + stores
-  - non-destructive migration bootstrap
-  - tenant/repo/commit scoped graph snapshots
-- `v2/ingestion/`: webhook normalization, queue jobs, retry worker, invalidation planner
-- `v2/api/`: managed-service API surface (REST contract adapter + service methods)
-- `v2/mcp/`: MCP parity tools (`kg.find_entities`, `kg.find_relations`, `kg.get_subgraph`, `kg.explain_relation`)
-- `v2/evidence/`: monthly benchmark protocol + report generators
+- deterministic analyzer passes
+- canonical snapshot serialization
+- in-memory query / MCP parity foundations
+- a legacy Arango full-build path kept for historical compatibility
 
-## v2 graph schema
+## Start With The Public Demo
 
-Node and edge identities include:
-- `tenant_id`
-- `repo_id`
-- `commit_sha`
-- `entity_kind`
-- canonical symbol path
+From `repo_kg_maintainer/`:
 
-Each edge includes provenance:
-- `extractor_pass`
-- `rule_id`
-- `source_span`
-- `confidence`
+```bash
+python3.11 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+PYTHONPATH=. .venv/bin/python main_v2.py \
+  --tenant tenant-demo \
+  --repo examples/python-demo \
+  --commit demo-commit \
+  --source ../examples/python_demo_repo \
+  --output /tmp/python_demo_snapshot_v2.json
+```
 
-Snapshot metadata includes:
+Expected stable result for the committed demo:
+
 - `graph_version = "2.0"`
-- `schema_hash`
-- deterministic canonical sorting for nodes/edges
+- `nodes = 14`
+- `edges = 11`
+- `snapshot_hash = 1c6493238faab5970ec76770a1ddafed05099c21a8d4b411776aa6111aecea1e`
 
-## local v2 snapshot build
+The committed expected snapshot is:
+
+- `../examples/python_demo_snapshot_v2.json`
+
+Comparison instructions live in:
+
+- [../docs/validation.md](../docs/validation.md)
+
+## What `main_v2.py` Actually Does
+
+The public CLI:
+
+- walks a local repository directory
+- collects Python source files with stable ordering
+- skips hidden and generated directories such as `.git`, `.venv`, `venv`,
+  `node_modules`, `build`, `dist`, and `__pycache__`
+- runs the pass-based analyzer pipeline
+- writes a canonical graph snapshot JSON file
+- prints a summary with graph version, schema hash, snapshot hash, node count,
+  and edge count
+
+## Public Python Contract
+
+Important public-facing interfaces:
+
+- `main_v2.py`
+- `v2/analyzer/pipeline.py`
+- `v2/api/service.py`
+- `v2/graph/store.py`
+- `v2/mcp/toolset.py`
+- `v2/serializer.py`
+- `v2/models.py`
+
+These files define the public research contract more accurately than the legacy
+Arango path.
+
+## Determinism Guarantees
+
+The current v2 contract is narrow but deliberate:
+
+- node IDs are derived from tenant / repo / commit / entity kind / symbol path
+- edge IDs are derived from source / relation type / target / provenance rule
+- snapshots are canonicalized before serialization
+- snapshot hashes intentionally ignore `generated_at`
+- every edge includes provenance with extractor pass, rule ID, source span, and
+  confidence
+
+## Install
 
 ```bash
-cd /Users/xujiantong/Code/repos/code-mesh/repo-graph-rag/repo_kg_maintainer
-python main_v2.py --tenant tenant-a --repo demo/repo --commit local --source . --output output/graph_snapshot_v2.json
+python3.11 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ```
 
-## REST contract (v2)
-
-- `POST /v2/index/repository`
-- `POST /v2/index/commit`
-- `GET /v2/graph/{tenant}/{repo}/{sha}`
-- `POST /v2/query/context`
-- `GET /v2/jobs/{job_id}`
-
-`v2/api/rest.py` exposes `create_fastapi_app(...)` when FastAPI is installed.
-
-## tests
+Legacy extras for the Arango path:
 
 ```bash
-cd /Users/xujiantong/Code/repos/code-mesh/repo-graph-rag/repo_kg_maintainer
-python -m pytest tests -q
+.venv/bin/pip install -r requirements-legacy.txt
 ```
+
+`requirements-legacy.txt` is a compatibility stack for the historical
+`llama-github` integration. It pins the older `langchain 0.2.x` family that
+`llama-github==0.3.3` still expects and includes undeclared import-time extras
+required by that package.
+
+## Tests And Validation
+
+Run the supported regression suite:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m pytest tests -q
+```
+
+Useful manual checks:
+
+- run `main_v2.py` on `../examples/python_demo_repo`
+- compare the output against `../examples/python_demo_snapshot_v2.json`
+- run `main_v2.py` on this directory for a larger local smoke
+- use the in-memory service/toolset surfaces in `v2/api/service.py` and
+  `v2/mcp/toolset.py`
+
+More detailed validation notes live in:
+
+- [../docs/python-v2.md](../docs/python-v2.md)
+- [../docs/demo-walkthrough.md](../docs/demo-walkthrough.md)
+- [../docs/snapshot-schema.md](../docs/snapshot-schema.md)
+- [../docs/validation.md](../docs/validation.md)
+
+## Legacy Path
+
+`main.py` and `repo_knowledge_graph.py` remain available as a legacy,
+Arango-backed full-build workflow.
+
+Important constraints:
+
+- full-build only
+- incremental updates are not a supported public capability
+- destructive collection reset requires explicit opt-in
+- legacy install depends on `llama-github==0.3.3` and pinned `langchain 0.2.x`
+  compatibility packages
+- legacy repository discovery and filtering intentionally continue to come from
+  `llama-github`
+
+If you use the legacy path against an existing database, prefer a fresh
+database name or explicit `--reset-collections` when you need a clean rebuild.
+
+## Documentation
+
+- [../docs/README.md](../docs/README.md)
+- [../docs/architecture.md](../docs/architecture.md)
+- [../docs/python-v2.md](../docs/python-v2.md)
+- [../docs/demo-walkthrough.md](../docs/demo-walkthrough.md)
+- [../docs/legacy-arango.md](../docs/legacy-arango.md)
+- [../docs/go-experimental.md](../docs/go-experimental.md)
+
+## Archived Research
+
+Historical, non-supported research components were removed from the runtime tip.
+See [archive/README.md](archive/README.md).

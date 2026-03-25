@@ -1,3 +1,5 @@
+"""Service-layer contract for indexing and querying snapshot v2 graphs."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -13,6 +15,8 @@ from v2.serializer import snapshot_to_dict
 
 @dataclass
 class IndexRepositoryRequestV2:
+    """Request payload for indexing a full repository snapshot."""
+
     tenant_id: str
     repo_id: str
     commit_sha: str
@@ -22,6 +26,8 @@ class IndexRepositoryRequestV2:
 
 @dataclass
 class QueryContextRequestV2:
+    """Request payload for deterministic context/subgraph queries."""
+
     tenant_id: str
     repo_id: str
     commit_sha: str
@@ -34,6 +40,8 @@ class QueryContextRequestV2:
 
 
 class GraphServiceV2:
+    """Application service exposing index, query, and job-status operations."""
+
     def __init__(
         self,
         graph_store,
@@ -51,6 +59,7 @@ class GraphServiceV2:
         self.deduplicator = deduplicator
 
     def post_index_repository(self, request: IndexRepositoryRequestV2, api_key: str) -> Dict[str, object]:
+        """Validate, deduplicate, and enqueue an indexing job."""
         principal = self.authz.authorize(api_key, request.tenant_id, "indexer")
         self.quota.register_repo(request.tenant_id, request.repo_id)
         self.quota.acquire_job_slot(request.tenant_id)
@@ -89,6 +98,7 @@ class GraphServiceV2:
         }
 
     def post_index_commit(self, request: IndexRepositoryRequestV2, api_key: str) -> Dict[str, object]:
+        """Alias for repository indexing with commit-scoped semantics."""
         return self.post_index_repository(request, api_key)
 
     def get_graph(
@@ -98,6 +108,7 @@ class GraphServiceV2:
         commit_sha: str,
         api_key: str,
     ) -> Dict[str, object]:
+        """Return a canonicalized graph snapshot for the requested repository state."""
         principal = self.authz.authorize(api_key, tenant_id, "viewer")
         snapshot = self.graph_store.get_snapshot(tenant_id, repo_id, commit_sha)
         self.quota.validate_graph_size(tenant_id, len(snapshot.nodes))
@@ -112,6 +123,7 @@ class GraphServiceV2:
         return snapshot_to_dict(snapshot)
 
     def post_query_context(self, request: QueryContextRequestV2, api_key: str) -> Dict[str, object]:
+        """Return a deterministic graph slice using store-backed query capabilities."""
         principal = self.authz.authorize(api_key, request.tenant_id, "viewer")
         query_fn = getattr(self.graph_store, "query_context", None)
         if query_fn is None:
@@ -155,6 +167,7 @@ class GraphServiceV2:
         return result
 
     def get_job(self, tenant_id: str, job_id: str, api_key: str) -> Dict[str, object]:
+        """Fetch the latest job status for a tenant-visible indexing job."""
         principal = self.authz.authorize(api_key, tenant_id, "viewer")
         status = self.graph_store.get_job_status(tenant_id, job_id)
         if status is None:

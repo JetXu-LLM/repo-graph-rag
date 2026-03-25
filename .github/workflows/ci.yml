@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  python-mainline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r repo_kg_maintainer/requirements.txt pytest
+
+      - name: Demo CLI smoke
+        env:
+          PYTHONPATH: repo_kg_maintainer
+        run: |
+          python repo_kg_maintainer/main_v2.py \
+            --tenant tenant-demo \
+            --repo examples/python-demo \
+            --commit demo-commit \
+            --source examples/python_demo_repo \
+            --output /tmp/python_demo_snapshot_v2.json \
+            > /tmp/python_demo_summary.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          actual = json.loads(Path('/tmp/python_demo_snapshot_v2.json').read_text())
+          expected = json.loads(Path('examples/python_demo_snapshot_v2.json').read_text())
+          summary = json.loads(Path('/tmp/python_demo_summary.json').read_text())
+
+          assert summary["graph_version"] == "2.0"
+          assert summary["nodes"] == 14
+          assert summary["edges"] == 11
+          assert summary["snapshot_hash"] == "1c6493238faab5970ec76770a1ddafed05099c21a8d4b411776aa6111aecea1e"
+
+          actual.pop("generated_at", None)
+          expected.pop("generated_at", None)
+          assert actual == expected
+          PY
+
+      - name: Syntax gate
+        run: |
+          python -m py_compile \
+            repo_kg_maintainer/main.py \
+            repo_kg_maintainer/main_v2.py \
+            repo_kg_maintainer/repo_knowledge_graph.py \
+            repo_kg_maintainer/utils.py \
+            repo_kg_maintainer/code_analyze/code_analyzer.py \
+            repo_kg_maintainer/code_analyze/python_analyzer.py \
+            repo_kg_maintainer/code_analyze/python_relation.py \
+            repo_kg_maintainer/code_analyze/java_analyzer.py \
+            repo_kg_maintainer/code_analyze/jsts_analyzer.py \
+            repo_kg_maintainer/v2/api/rest.py \
+            repo_kg_maintainer/v2/api/service.py \
+            repo_kg_maintainer/v2/analyzer/pipeline.py \
+            repo_kg_maintainer/v2/graph/store.py \
+            repo_kg_maintainer/v2/mcp/toolset.py \
+            repo_kg_maintainer/v2/evidence/benchmark.py \
+            repo_kg_maintainer/v2/runtime.py
+
+      - name: Test supported surface
+        env:
+          PYTHONPATH: repo_kg_maintainer
+        run: |
+          python -m pytest repo_kg_maintainer/tests -q

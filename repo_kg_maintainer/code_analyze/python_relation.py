@@ -279,7 +279,7 @@ class PythonRelationExtractor:
                 self.logger.debug(f"Found parent classes for {class_name} through name matching: {parents}")
                 return parents
         
-        self.logger.warning(f"No parent classes found for {class_name}")
+        self.logger.debug(f"No parent classes found for {class_name}")
         return []
 
     def _generate_entity_key(self, entity_type: str, file_path: str, name: str, parent_name: Optional[str] = None) -> str:
@@ -2053,7 +2053,7 @@ class PythonRelationExtractor:
                     # Get parent classes
                     parent_classes = self._get_parent_classes(current_class, file_path, import_map)
                     if not parent_classes:
-                        self.logger.warning(f"No parent classes found for {current_class}")
+                        self.logger.debug(f"No parent classes found for {current_class}")
                         return
                         
                     # Use first parent class (simplification for multiple inheritance)
@@ -2117,7 +2117,7 @@ class PythonRelationExtractor:
                             # Get parent classes
                             parent_classes = self._get_parent_classes(current_class, file_path, import_map)
                             if not parent_classes:
-                                self.logger.warning(f"No parent classes found for {current_class}")
+                                self.logger.debug(f"No parent classes found for {current_class}")
                                 return
                                 
                             # Use first parent class (simplification for multiple inheritance)
@@ -2314,7 +2314,10 @@ class PythonRelationExtractor:
             
             # If still not resolved, give up
             if not callee_ref:
-                self.logger.warning(f"Failed to resolve callee from candidates: {candidates}")
+                # Unresolved callees are common for builtins, dynamic dispatch,
+                # mocks, and external-library calls; keep this at debug level
+                # so normal graph builds do not get buried in expected noise.
+                self.logger.debug(f"Failed to resolve callee from candidates: {candidates}")
                 return
         
             # Enhanced: Special handling for instantiation of subclasses

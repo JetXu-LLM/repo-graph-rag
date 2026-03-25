@@ -1,3 +1,5 @@
+"""MCP-friendly query helpers over snapshot v2 graph stores."""
+
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -5,6 +7,8 @@ from typing import Dict, List
 
 
 class GraphMCPToolsetV2:
+    """Expose deterministic entity, relation, and subgraph lookup helpers."""
+
     def __init__(self, graph_store) -> None:
         self.graph_store = graph_store
 
@@ -18,6 +22,7 @@ class GraphMCPToolsetV2:
         cursor: int = 0,
         limit: int = 50,
     ) -> Dict[str, object]:
+        """Return a stable page of entities filtered by kind and/or file path."""
         snapshot = self.graph_store.get_snapshot(tenant_id, repo_id, commit_sha)
         nodes = snapshot.nodes
         if entity_kind:
@@ -46,6 +51,7 @@ class GraphMCPToolsetV2:
         cursor: int = 0,
         limit: int = 50,
     ) -> Dict[str, object]:
+        """Return a stable page of relations filtered by edge attributes."""
         snapshot = self.graph_store.get_snapshot(tenant_id, repo_id, commit_sha)
         edges = snapshot.edges
 
@@ -82,6 +88,7 @@ class GraphMCPToolsetV2:
         cursor: int = 0,
         limit: int = 50,
     ) -> Dict[str, object]:
+        """Return a deterministic graph slice centered on file/symbol filters."""
         query = getattr(self.graph_store, "query_context", None)
         if query is None:
             snapshot = self.graph_store.get_snapshot(tenant_id, repo_id, commit_sha)
@@ -111,6 +118,7 @@ class GraphMCPToolsetV2:
         commit_sha: str,
         edge_id: str,
     ) -> Dict[str, object] | None:
+        """Return the serialized edge payload for a specific relation id."""
         explain = getattr(self.graph_store, "explain_relation", None)
         if explain is None:
             snapshot = self.graph_store.get_snapshot(tenant_id, repo_id, commit_sha)

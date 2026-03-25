@@ -1,48 +1,62 @@
-Help me generate a go program to analyze golang project. Following requirements below:
-1. Read the directory as a whole. Read go.mod file if possible.
-2. Captures struct and interface definitions.
-3. Stores each symbol in the analyzer's symbols map
-4. Identifies regular functions and methods
-5. The code entity includes: variables, functions, structs and interfaces.
-6. variables can have a scope of global, parameter, local, function
+# Go Analyzer (Experimental)
 
+This subtree preserves a substantial Go-based analyzer prototype that was
+originally developed as an adjacent exploration to the Python orchestration
+path.
 
-type ImportInfo struct {
-	Path  string // full import path
-	Alias string // local name/alias (or last part of path if no alias)
-}
+## Status
 
-type Module struct {
-    ModulePath string
-    ModuleDir  string
-    Packages []Package
-}
+- experimental
+- not part of the default quickstart
+- not part of the default CI gate
+- not positioned as a supported public surface
 
-type Package struct {
-    Name string
-	Imports     map[string][]ImportInfo // key is the file path
-    PackagePath string
-    Files []string
-    Structs []StructInfo
-    Functions []Function
-}
+## Why It Still Exists
 
-type StructInfo struct {
-    MemberFunctions []Function
-    Fields []StructField
-}
+The Go subtree still carries real research value:
 
-type StructField struct {
-	Name     string
-	TypeName string
-	TypePath string
-}
+- AST-driven graph construction research for Go repositories
+- call graph and weighted graph experiments over repository structure
+- MCP-oriented exploration over graph outputs
 
-## Useful Commands
-- `make all` To compile all binaries
-- ``./build/kg <PROJECT_DIRECTORY>` - Generate knowledge_graph.json file
-- `./build/dot` - Consume knowledge_graph.json and generate output.dot file
-- `neato -Goverlap=false -Tpng output.dot -o vehicle.png` - Not recommended, neato has a bug to overlap the subgraphs
-- `fdp -Tpng -Gdpi=300 output.dot -o vehicle.png` - Not recommended, it won't be able to render the large png
-- `fdp -Tsvg output.dot -o vehicle.svg`
-- `inkscape vehicle.svg` - Run `brew install inkscape` if you don't have inkscape installed
+It is useful as a design reference and as a possible future extraction line, but
+it is not the public center of this repository.
+
+## What Is Here
+
+- `internal/analyzer/`: graph construction, call graph, node and edge logic
+- `internal/parser/`: parser orchestration over Go source trees
+- `internal/mcp/`: MCP-oriented graph query handlers
+- `internal/llm/`: importance-scoring experiments
+- `cmd/`: CLI entrypoints such as `kg`, `pagerank`, `importance`, `tagging`,
+  and `mcp`
+
+## If You Want To Explore It
+
+From this directory, the historical build commands are:
+
+```bash
+make test
+make all
+```
+
+If a Go toolchain is available and the subtree builds cleanly in your
+environment, the main artifact to inspect is the `kg` binary, which emits a Go
+repository knowledge graph for downstream experiments.
+
+## What Is Intentionally Not Claimed
+
+- stable build guarantees across environments
+- stable public API contracts
+- production support
+- parity with the Python v2 path
+
+## Relationship To The Rest Of The Repo
+
+- the Python `v2` path is the supported public surface
+- the legacy Arango path is historical compatibility
+- this Go subtree is an adjacent experimental branch of the same broader
+  Code Mesh research effort
+
+See [../../../docs/go-experimental.md](../../../docs/go-experimental.md)
+for the repo-level statement of support boundaries.

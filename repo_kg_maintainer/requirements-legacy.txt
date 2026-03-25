@@ -1,0 +1,12 @@
+-r requirements.txt
+python-arango
+python-dotenv
+# llama-github 0.3.3 still expects the pre-0.3 LangChain surface and imports
+# IPython at module import time without declaring it in package metadata.
+ipython<9
+langchain==0.2.17
+langchain-core==0.2.43
+langchain-openai==0.1.25
+langchain-mistralai==0.1.13
+langchain-text-splitters==0.2.4
+llama-github==0.3.3

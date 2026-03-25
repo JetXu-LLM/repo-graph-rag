@@ -15,11 +15,13 @@ class RelationExtractionPass:
         if context.tree is None:
             raise ValueError("AST tree must exist before relation extraction")
 
-        context.relations = self._extractor.extract_relations(
+        existing_relations = list(context.relations)
+        extracted_relations = self._extractor.extract_relations(
             context.tree,
             context.content,
             context.file_path,
         )
+        context.relations = existing_relations + extracted_relations
         context.variable_types = dict(self._extractor.variable_types.get(context.file_path, {}))
         context.param_types = dict(self._extractor.param_types.get(context.file_path, {}))
         context.return_types = dict(self._extractor.return_types)

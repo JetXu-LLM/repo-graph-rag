@@ -1,3 +1,5 @@
+"""Persistence backends for graph snapshot v2."""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,18 +12,23 @@ from v2.serializer import canonicalize_snapshot
 
 
 def _safe_arango_key(raw_key: str) -> str:
+    """Generate a stable, Arango-safe document key from a public graph id."""
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:48]
 
 
 class ArangoGraphStoreV2:
+    """ArangoDB-backed store for graph snapshots and indexing job state."""
+
     def __init__(self, db) -> None:
         self.db = db
         self.migrations = MigrationManagerV2()
 
     def bootstrap(self) -> Dict[str, List[str]]:
+        """Create required collections and indexes for the v2 store."""
         return self.migrations.bootstrap(self.db)
 
     def save_snapshot(self, snapshot: GraphSnapshot) -> None:
+        """Persist the canonical snapshot into vertex and edge collections."""
         canonicalize_snapshot(snapshot)
         node_collection = self.db.collection(VERTEX_COLLECTION)
         edge_collection = self.db.collection(EDGE_COLLECTION)
@@ -39,6 +46,7 @@ class ArangoGraphStoreV2:
             self._upsert(edge_collection, payload)
 
     def get_snapshot(self, tenant_id: str, repo_id: str, commit_sha: str) -> GraphSnapshot:
+        """Rehydrate a canonical snapshot from persisted vertex and edge documents."""
         node_query = (
             "FOR doc IN @@collection "
             "FILTER doc.tenant_id == @tenant_id "
@@ -126,12 +134,14 @@ class ArangoGraphStoreV2:
         return snapshot
 
     def upsert_job_status(self, status: IndexJobStatus) -> None:
+        """Persist job status for worker-visible progress tracking."""
         collection = self.db.collection(JOB_COLLECTION)
         payload = asdict(status)
         payload["_key"] = _safe_arango_key(f"{status.tenant_id}:{status.job_id}")
         self._upsert(collection, payload)
 
     def get_job_status(self, tenant_id: str, job_id: str) -> Optional[IndexJobStatus]:
+        """Return the latest stored job status, if any."""
         collection = self.db.collection(JOB_COLLECTION)
         key = _safe_arango_key(f"{tenant_id}:{job_id}")
         if not collection.has(key):
@@ -151,6 +161,7 @@ class ArangoGraphStoreV2:
 
     @staticmethod
     def _upsert(collection, payload: Dict[str, object]) -> None:
+        """Insert or update a document using the precomputed `_key` field."""
         if collection.has(payload["_key"]):
             collection.update(payload)
         else:
@@ -158,19 +169,24 @@ class ArangoGraphStoreV2:
 
 
 class InMemoryGraphStoreV2:
+    """Reference in-memory store used by tests and lightweight local runtimes."""
+
     def __init__(self) -> None:
         self.snapshots: Dict[Tuple[str, str, str], GraphSnapshot] = {}
         self.jobs: Dict[Tuple[str, str], IndexJobStatus] = {}
 
     def bootstrap(self) -> Dict[str, List[str]]:
+        """Mirror the store interface; no migration work is required in memory."""
         return {"collections": [], "indexes": []}
 
     def save_snapshot(self, snapshot: GraphSnapshot) -> None:
+        """Save a canonical snapshot in memory."""
         canonicalize_snapshot(snapshot)
         key = (snapshot.tenant_id, snapshot.repo_id, snapshot.commit_sha)
         self.snapshots[key] = snapshot
 
     def get_snapshot(self, tenant_id: str, repo_id: str, commit_sha: str) -> GraphSnapshot:
+        """Return a stored snapshot or an empty canonical shell if missing."""
         key = (tenant_id, repo_id, commit_sha)
         if key not in self.snapshots:
             return GraphSnapshot(
@@ -187,9 +203,11 @@ class InMemoryGraphStoreV2:
         return snapshot
 
     def upsert_job_status(self, status: IndexJobStatus) -> None:
+        """Store the latest job status for an in-memory runtime."""
         self.jobs[(status.tenant_id, status.job_id)] = status
 
     def get_job_status(self, tenant_id: str, job_id: str) -> Optional[IndexJobStatus]:
+        """Return a previously stored job status, if available."""
         return self.jobs.get((tenant_id, job_id))
 
     def query_context(
@@ -204,6 +222,7 @@ class InMemoryGraphStoreV2:
         cursor: int = 0,
         limit: int = 50,
     ) -> Dict[str, object]:
+        """Return a deterministic file/symbol-centered subgraph view."""
         snapshot = self.get_snapshot(tenant_id, repo_id, commit_sha)
         nodes = [node for node in snapshot.nodes if (not file_path or node.file_path == file_path)]
         if symbol_type:
@@ -253,6 +272,7 @@ class InMemoryGraphStoreV2:
         commit_sha: str,
         edge_id: str,
     ) -> Dict[str, object] | None:
+        """Return the serialized edge payload for a specific relation id."""
         snapshot = self.get_snapshot(tenant_id, repo_id, commit_sha)
         for edge in snapshot.edges:
             if edge.id == edge_id:

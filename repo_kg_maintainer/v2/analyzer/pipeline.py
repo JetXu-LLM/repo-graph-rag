@@ -1,8 +1,10 @@
+"""Deterministic Python analysis pipeline for graph snapshot v2."""
+
 from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-from code_analyze.code_analyzer import EntityInfo
+from code_analyze.code_analyzer import EntityInfo, EntityType
 from code_analyze.python_analyzer import PythonAnalyzer
 from code_analyze.python_relation import PythonRelationExtractor
 
@@ -19,6 +21,8 @@ from v2.serializer import compute_snapshot_hash, get_schema_hash, canonicalize_s
 
 
 class PythonGraphAnalyzerV2:
+    """Build graph nodes and provenance-carrying edges from Python sources."""
+
     def __init__(self) -> None:
         self._analyzer = PythonAnalyzer()
 
@@ -29,6 +33,7 @@ class PythonGraphAnalyzerV2:
         repo_id: str,
         commit_sha: str,
     ) -> tuple[AnalyzerResult, GraphSnapshot]:
+        """Run the full pass pipeline and return the canonical snapshot."""
         if not files:
             raise ValueError("files cannot be empty")
 
@@ -93,6 +98,7 @@ class PythonGraphAnalyzerV2:
         repo_id: str,
         commit_sha: str,
     ) -> Tuple[List[GraphNode], Dict[str, str]]:
+        """Translate extracted file and symbol entities into stable graph nodes."""
         nodes: List[GraphNode] = []
         legacy_to_node_id: Dict[str, str] = {}
 
@@ -125,6 +131,7 @@ class PythonGraphAnalyzerV2:
                         },
                     )
                 )
+                legacy_to_node_id[self._legacy_file_key(file_path)] = file_node_id
 
             for entity in sorted(
                 context.entities,
@@ -179,6 +186,7 @@ class PythonGraphAnalyzerV2:
         commit_sha: str,
         legacy_to_node_id: Dict[str, str],
     ) -> List[GraphEdge]:
+        """Translate validated legacy-style relations into v2 graph edges."""
         edges: List[GraphEdge] = []
         for relation in context.relations:
             source_id = legacy_to_node_id.get(relation.source.key)
@@ -215,6 +223,11 @@ class PythonGraphAnalyzerV2:
         return edges
 
     @staticmethod
+    def _legacy_file_key(file_path: str) -> str:
+        return f"{EntityType.FILE.value}/{file_path}/<file>"
+
+    @staticmethod
     def _legacy_entity_key(entity: EntityInfo) -> str:
+        """Map legacy analyzer entity identity onto the v2 node-id lookup space."""
         parent = f"{entity.parent_name}/" if entity.parent_name else ""
         return f"{entity.entity_type}/{entity.file_path}/{parent}{entity.name}"

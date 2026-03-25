@@ -1,0 +1,494 @@
+{
+  "commit_sha": "demo-commit",
+  "edges": [
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|cbcd48b6a0d14b5c36bfe919",
+      "metadata": {
+        "import_symbol": "TaskService"
+      },
+      "provenance": {
+        "confidence": 0.98,
+        "extractor_pass": "import_resolution",
+        "rule_id": "imports.module.symbol",
+        "source_span": [
+          1,
+          21
+        ]
+      },
+      "relation_type": "IMPORTS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|File|app.py::_file_",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Class|service.py::TaskService",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|61dbac05dfab71a07c03d843",
+      "metadata": {
+        "import_symbol": "Worker"
+      },
+      "provenance": {
+        "confidence": 0.98,
+        "extractor_pass": "import_resolution",
+        "rule_id": "imports.module.symbol",
+        "source_span": [
+          2,
+          21
+        ]
+      },
+      "relation_type": "IMPORTS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|File|service.py::_file_",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Class|workers.py::Worker",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|033d1c50f04289f527eaddf6",
+      "metadata": {
+        "import_symbol": "finalize"
+      },
+      "provenance": {
+        "confidence": 0.98,
+        "extractor_pass": "import_resolution",
+        "rule_id": "imports.module.symbol",
+        "source_span": [
+          1,
+          21
+        ]
+      },
+      "relation_type": "IMPORTS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|File|service.py::_file_",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::finalize",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|f2c7d0575098a685f24e39b0",
+      "metadata": {
+        "is_method": true,
+        "resolution_path": [
+          "attribute.attr:execute",
+          "attribute.object",
+          "identifier:service"
+        ]
+      },
+      "provenance": {
+        "confidence": 0.9,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "calls.function.dispatch",
+        "source_span": [
+          7,
+          16
+        ]
+      },
+      "relation_type": "CALLS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|app.py::DemoApp.run",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|service.py::TaskService.execute",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|568f575f519c1b56d81a2ead",
+      "metadata": {},
+      "provenance": {
+        "confidence": 0.97,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "instantiates.class.call",
+        "source_span": [
+          6,
+          19
+        ]
+      },
+      "relation_type": "INSTANTIATES",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|app.py::DemoApp.run",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Class|service.py::TaskService",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|e33146da59f9f1dc7f7a793c",
+      "metadata": {
+        "is_method": true,
+        "resolution_path": [
+          "attribute.attr:format",
+          "attribute.object",
+          "identifier:formatter"
+        ]
+      },
+      "provenance": {
+        "confidence": 0.9,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "calls.function.dispatch",
+        "source_span": [
+          8,
+          12
+        ]
+      },
+      "relation_type": "CALLS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::finalize",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::Formatter.format",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|eea6913b4d94d70132281867",
+      "metadata": {},
+      "provenance": {
+        "confidence": 0.97,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "instantiates.class.call",
+        "source_span": [
+          7,
+          17
+        ]
+      },
+      "relation_type": "INSTANTIATES",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::finalize",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Class|helpers.py::Formatter",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|5d53b2b57f85d7ffa179fb76",
+      "metadata": {
+        "is_method": false,
+        "resolution_path": [
+          "identifier:finalize"
+        ]
+      },
+      "provenance": {
+        "confidence": 0.9,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "calls.function.dispatch",
+        "source_span": [
+          9,
+          16
+        ]
+      },
+      "relation_type": "CALLS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|service.py::TaskService.execute",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::finalize",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|8457197316bef8ffabac5403",
+      "metadata": {
+        "is_method": true,
+        "resolution_path": [
+          "attribute.attr:work",
+          "attribute.object",
+          "identifier:worker"
+        ]
+      },
+      "provenance": {
+        "confidence": 0.9,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "calls.function.dispatch",
+        "source_span": [
+          8,
+          18
+        ]
+      },
+      "relation_type": "CALLS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|service.py::TaskService.execute",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|workers.py::Worker.work",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|3fce67a1aec32f1436d6136f",
+      "metadata": {},
+      "provenance": {
+        "confidence": 0.97,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "instantiates.class.call",
+        "source_span": [
+          7,
+          18
+        ]
+      },
+      "relation_type": "INSTANTIATES",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|service.py::TaskService.execute",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Class|workers.py::Worker",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "id": "edge|0425cee44c1390af9ca5f4e1",
+      "metadata": {
+        "is_method": true,
+        "resolution_path": [
+          "attribute.attr:prepare",
+          "attribute.object",
+          "identifier:self"
+        ]
+      },
+      "provenance": {
+        "confidence": 0.9,
+        "extractor_pass": "relation_extraction",
+        "rule_id": "calls.function.dispatch",
+        "source_span": [
+          6,
+          20
+        ]
+      },
+      "relation_type": "CALLS",
+      "repo_id": "examples/python-demo",
+      "source_id": "tenant-demo|examples/python-demo|demo-commit|Method|workers.py::Worker.work",
+      "target_id": "tenant-demo|examples/python-demo|demo-commit|Method|workers.py::Worker.prepare",
+      "tenant_id": "tenant-demo"
+    }
+  ],
+  "generated_at": "2026-03-25T15:58:47.801821+00:00",
+  "graph_version": "2.0",
+  "nodes": [
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Class",
+      "file_path": "app.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Class|app.py::DemoApp",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "DemoApp",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "app.py::DemoApp",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Class",
+      "file_path": "helpers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Class|helpers.py::Formatter",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "Formatter",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "helpers.py::Formatter",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Class",
+      "file_path": "service.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Class|service.py::TaskService",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "TaskService",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "service.py::TaskService",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Class",
+      "file_path": "workers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Class|workers.py::Worker",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "Worker",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "workers.py::Worker",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "File",
+      "file_path": "app.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|File|app.py::_file_",
+      "metadata": {
+        "description": "",
+        "file_type": "python",
+        "size": 150
+      },
+      "name": "<file>",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "app.py::_file_",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "File",
+      "file_path": "helpers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|File|helpers.py::_file_",
+      "metadata": {
+        "description": "",
+        "file_type": "python",
+        "size": 184
+      },
+      "name": "<file>",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "helpers.py::_file_",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "File",
+      "file_path": "service.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|File|service.py::_file_",
+      "metadata": {
+        "description": "",
+        "file_type": "python",
+        "size": 221
+      },
+      "name": "<file>",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "service.py::_file_",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "File",
+      "file_path": "workers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|File|workers.py::_file_",
+      "metadata": {
+        "description": "",
+        "file_type": "python",
+        "size": 208
+      },
+      "name": "<file>",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "workers.py::_file_",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Method",
+      "file_path": "app.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Method|app.py::DemoApp.run",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "run",
+      "parent_name": "DemoApp",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "app.py::DemoApp.run",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Method",
+      "file_path": "helpers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::Formatter.format",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "format",
+      "parent_name": "Formatter",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "helpers.py::Formatter.format",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Method",
+      "file_path": "helpers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Method|helpers.py::finalize",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "finalize",
+      "parent_name": "",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "helpers.py::finalize",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Method",
+      "file_path": "service.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Method|service.py::TaskService.execute",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "execute",
+      "parent_name": "TaskService",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "service.py::TaskService.execute",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Method",
+      "file_path": "workers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Method|workers.py::Worker.prepare",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "prepare",
+      "parent_name": "Worker",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "workers.py::Worker.prepare",
+      "tenant_id": "tenant-demo"
+    },
+    {
+      "commit_sha": "demo-commit",
+      "entity_kind": "Method",
+      "file_path": "workers.py",
+      "id": "tenant-demo|examples/python-demo|demo-commit|Method|workers.py::Worker.work",
+      "metadata": {
+        "complexity": 1,
+        "description": "",
+        "is_exported": true,
+        "modifiers": []
+      },
+      "name": "work",
+      "parent_name": "Worker",
+      "repo_id": "examples/python-demo",
+      "symbol_path": "workers.py::Worker.work",
+      "tenant_id": "tenant-demo"
+    }
+  ],
+  "repo_id": "examples/python-demo",
+  "schema_hash": "a4bc762e8e4e2d91c3c52f3dda836ef818c438c78c184a0d948249328a6a47a9",
+  "tenant_id": "tenant-demo"
+}

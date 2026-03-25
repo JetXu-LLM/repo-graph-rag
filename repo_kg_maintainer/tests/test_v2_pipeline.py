@@ -52,3 +52,26 @@ class B:
         assert edge.provenance.rule_id
         assert edge.provenance.extractor_pass
         assert edge.provenance.confidence > 0
+
+
+def test_pipeline_emits_import_edges_for_local_symbols() -> None:
+    files = {
+        "workers.py": """
+class Worker:
+    def work(self):
+        return 1
+""",
+        "service.py": """
+from workers import Worker
+
+class Service:
+    def execute(self):
+        worker = Worker()
+        return worker.work()
+""",
+    }
+
+    analyzer = PythonGraphAnalyzerV2()
+    _, snapshot = analyzer.analyze_files(files, "tenant-a", "repo-x", "c3")
+
+    assert any(edge.relation_type == "IMPORTS" for edge in snapshot.edges)

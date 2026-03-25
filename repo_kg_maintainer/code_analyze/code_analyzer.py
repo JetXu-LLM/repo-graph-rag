@@ -1,10 +1,14 @@
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Union, Tuple, TYPE_CHECKING
 from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 from functools import lru_cache
-from llama_github.data_retrieval.github_entities import Repository
+
+if TYPE_CHECKING:
+    from llama_github.data_retrieval.github_entities import Repository
+else:
+    Repository = Any
 
 class EntityType(Enum):
     """Core entity types as defined in the knowledge graph schema"""
@@ -88,7 +92,6 @@ class FileInfo:
     content: str
     size: int = 0
     description: str = ""
-    content: str
 
 @dataclass
 class EntityReference:

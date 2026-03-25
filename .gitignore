@@ -49,6 +49,15 @@ htmlcov/
 *.test
 *.out
 go.work
+repo_kg_maintainer/code_analyze/go_analyzer/build/
+repo_kg_maintainer/code_analyze/go_analyzer/knowledge_graph_examples/
+repo_kg_maintainer/code_analyze/go_analyzer/svg/
+repo_kg_maintainer/code_analyze/go_analyzer/callGraph.debug.json
+repo_kg_maintainer/code_analyze/go_analyzer/knowledge_graph.json
+repo_kg_maintainer/code_analyze/go_analyzer/output.dot
+repo_kg_maintainer/code_analyze/go_analyzer/enriched_kg*.json
+repo_kg_maintainer/code_analyze/go_analyzer/paths.json
+repo_kg_maintainer/code_analyze/go_analyzer/common_paths.json
 
 # Go dependency directories
 /vendor/
