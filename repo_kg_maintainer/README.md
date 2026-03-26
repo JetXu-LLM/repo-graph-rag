@@ -92,10 +92,11 @@ Legacy extras for the Arango path:
 .venv/bin/pip install -r requirements-legacy.txt
 ```
 
-`requirements-legacy.txt` is a compatibility stack for the historical
-`llama-github` integration. It pins the older `langchain 0.2.x` family that
-`llama-github==0.3.3` still expects and includes undeclared import-time extras
-required by that package.
+`requirements-legacy.txt` is the legacy dependency add-on for the historical
+`llama-github` integration. It now stays small on purpose: ArangoDB support,
+dotenv loading, and published `llama-github==0.4.0`. The LangChain provider
+packages are resolved from `llama-github`'s own metadata instead of being
+re-pinned here.
 
 ## Tests And Validation
 
@@ -130,8 +131,8 @@ Important constraints:
 - full-build only
 - incremental updates are not a supported public capability
 - destructive collection reset requires explicit opt-in
-- legacy install depends on `llama-github==0.3.3` and pinned `langchain 0.2.x`
-  compatibility packages
+- legacy install depends on published `llama-github==0.4.0` and its declared
+  modern LangChain provider dependencies
 - legacy repository discovery and filtering intentionally continue to come from
   `llama-github`
 

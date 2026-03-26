@@ -104,16 +104,17 @@ This requires:
 
 - `.env` or explicit CLI values for ArangoDB
 - `requirements-legacy.txt`
-- working `llama-github` compatibility stack
+- published `llama-github==0.4.0`
 
 ## Latest OSS-Cut Validation
 
-Local release validation performed on **March 25, 2026** included:
+Local release validation performed on **March 26, 2026** included:
 
 - public Python regression suite
 - syntax gate for the supported surface
 - real `main_v2.py` demo smoke run
 - larger local `main_v2.py` smoke over `repo_kg_maintainer`
+- import and instantiation smoke for published `llama-github==0.4.0`
 - real legacy full-build smoke against local ArangoDB
 
 At the time of the OSS cut:
@@ -124,16 +125,19 @@ At the time of the OSS cut:
   - `edges = 11`
   - `snapshot_hash = 1c6493238faab5970ec76770a1ddafed05099c21a8d4b411776aa6111aecea1e`
 - the larger local `repo_kg_maintainer` smoke also completed successfully
+- the legacy path completed successfully on published `llama-github==0.4.0`
+  and the modern `langchain-core 0.3.x` provider stack
 - the legacy Arango path produced non-empty collections including:
   - `Repository = 1`
   - `Module = 14`
-  - `File = 58`
-  - `Class = 31`
-  - `Method = 143`
-  - `CONTAINS = 255`
-  - `CALLS = 153`
-  - `USES = 16`
-  - `INSTANTIATES = 31`
+  - `File = 60`
+  - `Class = 35`
+  - `Method = 182`
+  - `Variable = 5`
+  - `CONTAINS = 296`
+  - `CALLS = 216`
+  - `USES = 8`
+  - `INSTANTIATES = 41`
 
 ## What Is Intentionally Not In CI
 

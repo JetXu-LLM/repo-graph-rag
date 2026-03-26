@@ -1,12 +1,8 @@
 -r requirements.txt
+# Legacy full-build extras keep Arango persistence and llama-github-backed
+# repository discovery/filtering in the loop.
 python-arango
 python-dotenv
-# llama-github 0.3.3 still expects the pre-0.3 LangChain surface and imports
-# IPython at module import time without declaring it in package metadata.
-ipython<9
-langchain==0.2.17
-langchain-core==0.2.43
-langchain-openai==0.1.25
-langchain-mistralai==0.1.13
-langchain-text-splitters==0.2.4
-llama-github==0.3.3
+# llama-github 0.4.0 publishes the modern LangChain provider dependencies it
+# needs, so this file no longer mirrors those transitive pins directly.
+llama-github==0.4.0

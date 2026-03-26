@@ -32,30 +32,29 @@ The public claim is compatibility, not feature velocity.
 | :--- | :--- |
 | `repo_kg_maintainer/main.py` | legacy CLI |
 | `repo_kg_maintainer/repo_knowledge_graph.py` | Arango-backed graph builder |
-| `repo_kg_maintainer/requirements-legacy.txt` | compatibility dependency stack |
+| `repo_kg_maintainer/requirements-legacy.txt` | legacy dependency add-on |
 
-## Dependency Compatibility Stack
+## Dependency Stack
 
 The legacy path intentionally keeps `llama-github` in the loop.
 
-Pinned stack:
+Direct dependencies:
 
-- `llama-github==0.3.3`
-- `langchain==0.2.17`
-- `langchain-core==0.2.43`
-- `langchain-openai==0.1.25`
-- `langchain-mistralai==0.1.13`
-- `langchain-text-splitters==0.2.4`
-- `ipython<9`
+- `requirements.txt`
+- `llama-github==0.4.0`
 - `python-arango`
 - `python-dotenv`
 
-Why the extra `IPython` pin exists:
+What changed in the OSS cut:
 
-- `llama-github==0.3.3` imports `IPython` at module import time
-- that dependency is not declared in the published package metadata
-- the compatibility stack makes the legacy path reproducible without rewriting
-  `llama-github`
+- `llama-github 0.4.0` publishes its own modern dependency metadata
+- the legacy path no longer re-pins `langchain`, `langchain-core`,
+  `langchain-openai`, `langchain-mistralai`, or
+  `langchain-text-splitters` in this repository
+- repository discovery and filtering still come from `llama-github`, which is
+  the part this repo intentionally wants to preserve
+- the March 26, 2026 OSS validation ran the full-build path successfully
+  against published `llama-github==0.4.0`
 
 ## Environment
 
@@ -100,7 +99,8 @@ At a high level:
 - no incremental updates
 - no production hardening
 - no guarantee of multi-language completeness
-- no guarantee that the dependency stack will stay modern
+- no guarantee that the legacy path will be the first surface to track every
+  upstream change
 
 The repository intentionally treats the failed incremental update line as a
 closed experiment for the OSS release.

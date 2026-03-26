@@ -193,7 +193,7 @@ The mainline pipeline is deliberately simple:
 | :--- | :--- | :--- |
 | Python `v2` snapshot pipeline | Supported | Primary public surface |
 | `GraphServiceV2` / `GraphMCPToolsetV2` | Supported | Deterministic query layer over snapshots |
-| Python + Arango legacy path | Legacy | Full-build only; no public incremental support |
+| Python + Arango legacy path | Legacy | Full-build only; keeps llama-github retrieval/filtering in the loop |
 | Go analyzer subtree | Experimental | Kept for research value, not default adoption |
 | Document graph enrichment path | Archived | Removed from runtime support surface |
 
@@ -221,8 +221,9 @@ Full docs index:
 - Python is the only supported public extraction path.
 - Java / JS / TS extraction exists, but relation extraction is not positioned as
   complete or public-mainline ready.
-- The legacy Arango path remains coupled to `llama-github==0.3.3` and a pinned
-  `langchain 0.2.x` compatibility stack.
+- The legacy Arango path still depends on `llama-github` plus GitHub/Arango
+  credentials, but the current OSS cut validates it on published
+  `llama-github==0.4.0` and its modern LangChain provider stack.
 - Incremental updates on the legacy path were an unfinished experiment and are
   intentionally not exposed as a public capability.
 - The Go subtree is experimental and outside the default CI and support
@@ -233,6 +234,8 @@ Full docs index:
 - Large generated graph artifacts and SVG outputs were removed from `HEAD`.
 - Public docs now center the deterministic Python mainline and the committed
   demo proof surface.
+- The legacy dependency story now tracks published `llama-github==0.4.0`
+  directly instead of duplicating LangChain-family pins in this repository.
 - Historical modules removed from the runtime tip remain discoverable in git
   history, but they are not part of the public support boundary.
 
